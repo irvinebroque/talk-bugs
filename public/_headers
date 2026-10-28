@@ -3,3 +3,6 @@
   X-Content-Type-Options: nosniff
   Permissions-Policy: microphone=(self), camera=(), on-device-speech-recognition=(self)
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'
+
+/.well-known/apple-app-site-association
+  Content-Type: application/json

@@ -1,0 +1,139 @@
+name: talk-bugs
+options:
+  bundleIdPrefix: com.irvinebroque
+  deploymentTarget:
+    iOS: '26.0'
+    watchOS: '26.0'
+packages:
+  TalkBugsCore:
+    path: Core
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    DEVELOPMENT_TEAM: WL8UPH7Q7H
+    CODE_SIGN_STYLE: Automatic
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 1.0
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_CFBundleDisplayName: talk-bugs
+    INFOPLIST_KEY_NSMicrophoneUsageDescription: Speak to send a text message.
+    INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: Turn your speech into chat messages.
+    SWIFT_STRICT_CONCURRENCY: complete
+targets:
+  TalkBugs:
+    type: application
+    platform: iOS
+    sources: [Shared, iPhone, Intents]
+    dependencies:
+      - package: TalkBugsCore
+      - target: TalkBugsWatch
+        embed: true
+      - target: TalkBugsControls
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.irvinebroque.talk-bugs
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SUPPORTS_MACCATALYST: NO
+        TARGETED_DEVICE_FAMILY: '1'
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+    info:
+      path: iPhone/Info.plist
+      properties:
+        CFBundleDisplayName: talk-bugs
+        NSMicrophoneUsageDescription: Speak to send a text message.
+        NSSpeechRecognitionUsageDescription: Turn your speech into chat messages.
+        UIBackgroundModes: [audio]
+        UILaunchScreen: {}
+        CFBundleURLTypes:
+          - CFBundleURLName: com.irvinebroque.talk-bugs
+            CFBundleURLSchemes: [talk-bugs]
+    entitlements:
+      path: iPhone/TalkBugs.entitlements
+      properties:
+        com.apple.developer.associated-domains: ['applinks:talk-bugs.roundtrip.workers.dev']
+  TalkBugsWatch:
+    type: application
+    platform: watchOS
+    sources: [Shared, Watch]
+    dependencies:
+      - package: TalkBugsCore
+      - target: TalkBugsWatchWidgets
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.irvinebroque.talk-bugs.watchkitapp
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_WKApplication: YES
+        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: com.irvinebroque.talk-bugs
+    info:
+      path: Watch/Info.plist
+      properties:
+        CFBundleDisplayName: talk-bugs
+        WKApplication: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.irvinebroque.talk-bugs.watchkitapp
+            CFBundleURLSchemes: [talk-bugs]
+        WKCompanionAppBundleIdentifier: com.irvinebroque.talk-bugs
+        NSMicrophoneUsageDescription: Speak to send a text message.
+        UIBackgroundModes: [audio]
+  TalkBugsControls:
+    type: app-extension
+    platform: iOS
+    sources: [Controls, Intents]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.irvinebroque.talk-bugs.controls
+    info:
+      path: Controls/Info.plist
+      properties:
+        CFBundleDisplayName: talk-bugs
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  TalkBugsWatchWidgets:
+    type: app-extension
+    platform: watchOS
+    sources: [WatchWidgets]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.irvinebroque.talk-bugs.watchkitapp.widgets
+    info:
+      path: WatchWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: talk-bugs
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  TalkBugsTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [UnitTests]
+    dependencies:
+      - target: TalkBugs
+      - package: TalkBugsCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.irvinebroque.talk-bugs.tests
+        GENERATE_INFOPLIST_FILE: YES
+  TalkBugsUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: TalkBugs
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.irvinebroque.talk-bugs.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  TalkBugs:
+    build:
+      targets:
+        TalkBugs: all
+    test:
+      targets: [TalkBugsTests, TalkBugsUITests]
+  TalkBugsWatch:
+    build:
+      targets:
+        TalkBugsWatch: all

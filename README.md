@@ -1,10 +1,14 @@
 # talk-bugs
 
-A minimal group chat: **speak to contribute, read to receive**. No message inputs, audio playback, voice recordings, accounts, or third-party application backend. The React UI uses default neutral shadcn/ui components and system fonts; Cloudflare Workers serves the app, and one SQLite-backed Durable Object coordinates each room.
+A minimal group chat: **speak to contribute, read to receive**. No typed message inputs, audio playback, accounts, or third-party application backend. The React UI uses default neutral shadcn/ui components and system fonts; Cloudflare Workers serves the app, and one SQLite-backed Durable Object coordinates each room.
 
 Live app: [talk-bugs.roundtrip.workers.dev](https://talk-bugs.roundtrip.workers.dev).
 
-## Run
+## Native iPhone and Apple Watch apps
+
+The SwiftUI apps in [`native/`](native/README.md) use completed spoken turns: Speak, then Send. Watch recordings go to the paired iPhone for local transcription; only text goes to Cloudflare. Native clients share rooms with browser clients through HTTPS snapshots and transcript posts. See the native README for Xcode setup, controls/complications, tests, and the simulator/hardware validation boundary.
+
+## Run the web app
 
 ```sh
 npm ci
@@ -30,7 +34,7 @@ Browser tests use installed Google Chrome (`channel: "chrome"`). To run in CI wi
 
 talk-bugs uses `SpeechRecognition` or `webkitSpeechRecognition`, with `continuous = true` and `interimResults = true`. When the optional `available()` check confirms that the English (`en-US`) pack is installed, it sets `processLocally = true`. Otherwise it uses standard browser recognition, including when the local check fails or a pack would need downloading. A local language-unavailable error switches the next user-initiated attempt to standard recognition.
 
-Standard recognition may send audio to the browser vendor’s service. Only text reaches the Cloudflare application backend. Application code does not record, upload, or play audio. There is no typed fallback. Browsers without either recognition constructor can still read and invite.
+Standard recognition may send audio to the browser vendor’s service. Only text reaches the Cloudflare application backend. Browser application code does not record, upload, or play audio. The native apps temporarily record audio locally, as described above. There is no typed fallback. Browsers without either recognition constructor can still read and invite.
 
 Microphone access starts only after clicking Start speaking. The microphone stops when the tab becomes hidden or the room disconnects. Reconnection never restarts it without another click. HTTPS or localhost and microphone permission are required.
 

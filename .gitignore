@@ -7,3 +7,8 @@ dist/
 playwright-report/
 test-results/
 .DS_Store
+native/.build/
+native/Core/.build/
+native/DerivedData/
+*.xcuserstate
+xcuserdata/
