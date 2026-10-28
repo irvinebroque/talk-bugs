@@ -93,7 +93,6 @@ function Room({ roomId, secret }: { roomId: string; secret?: string }) {
               {busy ? <LoaderCircle className="motion-safe:animate-spin" /> : speech.support === "unsupported" ? <MicOff /> : speaking ? <Square /> : <Mic />}
               {buttonLabel}
             </PushToTalk>
-            <span className="text-xs text-muted-foreground">English</span>
           </div>
           {speech.support === "unsupported" && <p className="text-sm text-muted-foreground">This browser doesn’t support speech recognition. Open this link in a supported browser to speak.</p>}
           {(speech.error || room.error) && <p role="alert" className="text-sm text-destructive">{speech.error || room.error}</p>}
