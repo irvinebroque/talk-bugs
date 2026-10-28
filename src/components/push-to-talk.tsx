@@ -28,7 +28,9 @@ export function PushToTalk({ disabled, active, onPress, onRelease, children }: {
     data-testid="push-to-talk"
     aria-pressed={active}
     disabled={disabled}
-    className="touch-none select-none [-webkit-touch-callout:none]"
+    variant="destructive"
+    size="icon"
+    className="size-28 rounded-full touch-none select-none aria-pressed:ring-4 aria-pressed:ring-destructive/25 [-webkit-touch-callout:none]"
     onContextMenu={event => event.preventDefault()}
     onPointerDown={event => {
       if (disabled || held.current || event.button !== 0 || !event.isPrimary) return;

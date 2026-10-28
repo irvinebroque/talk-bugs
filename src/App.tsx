@@ -101,13 +101,11 @@ function Room({ roomId, secret }: { roomId: string; secret?: string }) {
           <Incoming speakers={room.speakers} participants={room.participants} messages={room.messages} selfID={room.self?.id} />
         </CardContent>
 
-        <CardFooter className="flex-col items-stretch gap-3 border-t">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <PushToTalk active={speaking} disabled={disabled} onPress={speech.start} onRelease={speech.stop}>
-              {busy ? <LoaderCircle className="motion-safe:animate-spin" /> : speech.support === "unsupported" ? <MicOff /> : speaking ? <Square /> : <Mic />}
-              {buttonLabel}
-            </PushToTalk>
-          </div>
+        <CardFooter className="flex-col gap-3 border-t">
+          <PushToTalk active={speaking} disabled={disabled} onPress={speech.start} onRelease={speech.stop}>
+            {busy ? <LoaderCircle className="size-9 motion-safe:animate-spin" /> : speech.support === "unsupported" ? <MicOff className="size-9" /> : speaking ? <Square className="size-9" /> : <Mic className="size-9" />}
+            <span className="sr-only">{buttonLabel}</span>
+          </PushToTalk>
           {speech.support === "unsupported" && <p className="text-sm text-muted-foreground">This browser doesn’t support speech recognition. Open this link in a supported browser to speak.</p>}
           {(speech.error || room.error) && <p role="alert" className="text-sm text-destructive">{speech.error || room.error}</p>}
         </CardFooter>
