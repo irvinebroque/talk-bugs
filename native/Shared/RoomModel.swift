@@ -4,7 +4,8 @@ import TalkBugsCore
 
 @MainActor @Observable final class RoomModel {
     private(set) var room: UUID
-    let session = Identity.session()
+    private(set) var session = Identity.session()
+    private(set) var conversation = Conversation()
     private(set) var messages: [ChatMessage] = []
     private(set) var participants: [Participant] = []
     private(set) var selfID: String?
@@ -23,10 +24,12 @@ import TalkBugsCore
         UserDefaults.standard.set(room.uuidString, forKey: "room")
     }
     var api: RoomAPI { RoomAPI(baseURL: baseURL, room: room, session: session) }
-    func join(_ id: UUID) {
-        guard room != id else { return }
+    func join(_ id: UUID, session newSession: UUID? = nil) {
+        guard room != id || (newSession != nil && newSession != session) else { return }
         let wasActive = polling != nil
-        pause(); room = id; messages = []; participants = []; selfID = nil; etag = nil
+        pause(); room = id;
+        if let newSession { session = newSession; Identity.adopt(newSession) }
+        conversation = Conversation(); messages = []; participants = []; selfID = nil; etag = nil
         UserDefaults.standard.set(id.uuidString, forKey: "room"); onRoomChange?()
         if wasActive { resume() }
     }
@@ -40,7 +43,7 @@ import TalkBugsCore
                     let (snapshot, tag) = try await self.api.snapshot(etag: self.etag)
                     guard !Task.isCancelled, requestedRoom == self.room else { return }
                     self.etag = tag; self.connected = true; self.error = nil
-                    if let snapshot { self.selfID = snapshot.participant.id; self.participants = snapshot.participants; self.messages = snapshot.messages.filter { !$0.text.isEmpty } }
+                    if let snapshot { self.selfID = snapshot.participant.id; self.participants = snapshot.participants; self.messages = snapshot.messages.filter { !$0.text.isEmpty }; self.conversation.update(participants: snapshot.participants, messages: self.messages, selfID: snapshot.participant.id) }
                 } catch {
                     guard !Task.isCancelled else { return }
                     self.connected = false; self.error = "Trying to reconnect…"
@@ -51,6 +54,7 @@ import TalkBugsCore
     }
     func pause() {
         polling?.cancel(); polling = nil; connected = false
-        let old = api; Task { await old.leave() }
+        // Phone and Watch share an identity. Let its presence lease expire rather
+        // than marking the other active device offline when this one backgrounds.
     }
 }

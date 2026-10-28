@@ -1,28 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_TEXT, type Transcript } from "../../shared/protocol";
 import { browserRecognition, type BrowserRecognition } from "@/lib/speech";
+import { SpeechTurn } from "@/lib/speech-turn";
 
 export function useSpeech(publish: (update: Transcript) => void, connected: boolean) {
   const [support, setSupport] = useState<"checking" | "ready" | "unsupported">("checking");
   const [activity, setActivity] = useState<"idle" | "starting" | "listening" | "stopping">("idle");
   const [error, setError] = useState("");
-  const [preview, setPreview] = useState("");
   const recognition = useRef<BrowserRecognition | null>(null);
   const local = useRef(false);
   const started = useRef(false);
   const desired = useRef(false);
   const mounted = useRef(true);
   const restart = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const segments = useRef(new Map<number, Transcript>());
+  const turn = useRef<SpeechTurn | null>(null);
   const emit = useRef(publish);
   emit.current = publish;
   const lang = "en-US";
 
   const finish = useCallback(() => {
-    for (const segment of segments.current.values()) {
-      if (!segment.final) emit.current({ ...segment, revision: segment.revision + 1, final: true });
-    }
-    segments.current.clear();
+    const update = turn.current?.finish();
+    if (update) emit.current(update);
+    turn.current = null;
   }, []);
 
   const stop = useCallback(() => {
@@ -70,13 +69,14 @@ export function useSpeech(publish: (update: Transcript) => void, connected: bool
     if (!connected || support !== "ready" || recognition.current) return;
     const Constructor = browserRecognition();
     if (!Constructor) { setSupport("unsupported"); return; }
-    desired.current = true; setError(""); setPreview("");
+    clearTimeout(restart.current);
+    desired.current = true; setError(""); turn.current = new SpeechTurn();
     const begin = () => {
       if (!desired.current || !mounted.current) return;
       const speech = new Constructor();
       if ("processLocally" in speech) speech.processLocally = local.current;
       speech.lang = lang; speech.continuous = true; speech.interimResults = true; speech.maxAlternatives = 1;
-      recognition.current = speech; segments.current.clear(); setActivity("starting");
+      recognition.current = speech; setActivity("starting");
       started.current = false;
       speech.onstart = () => {
         if (!desired.current || recognition.current !== speech) { speech.abort(); return; }
@@ -85,27 +85,11 @@ export function useSpeech(publish: (update: Transcript) => void, connected: bool
       };
       speech.onresult = event => {
         if (recognition.current !== speech) return;
-        for (let index = event.resultIndex; index < event.results.length; index++) {
-          const result = event.results[index];
-          const old = segments.current.get(index);
-          if (old?.final) continue;
-          const fullText = result[0].transcript.trim();
-          const text = fullText.slice(0, MAX_TEXT);
-          const update: Transcript = { type: "transcript", utteranceId: old?.utteranceId ?? crypto.randomUUID(),
-            revision: (old?.revision ?? 0) + 1, text, final: result.isFinal };
-          segments.current.set(index, update); emit.current(update);
-          setPreview(text);
-          if (fullText.length >= MAX_TEXT) {
-            setError("That phrase reached the length limit. Release, then hold to talk again.");
-            desired.current = false; speech.stop();
-          }
-        }
-        // Browsers may retract an interim result entirely.
-        for (const [index, segment] of segments.current) {
-          if (index >= event.results.length && !segment.final) {
-            emit.current({ ...segment, revision: segment.revision + 1, text: "", final: true });
-            segments.current.delete(index);
-          }
+        const update = turn.current?.update(event.results);
+        if (update) emit.current(update);
+        if (turn.current && turn.current.text.length >= MAX_TEXT) {
+          setError("That turn reached the length limit. Release, then hold to talk again.");
+          desired.current = false; speech.stop();
         }
       };
       speech.onerror = event => {
@@ -124,18 +108,19 @@ export function useSpeech(publish: (update: Transcript) => void, connected: bool
       };
       speech.onend = () => {
         if (recognition.current !== speech) return;
-        finish(); recognition.current = null; started.current = false;
+        recognition.current = null; started.current = false;
+        if (desired.current) turn.current?.restart(); else finish();
         if (!mounted.current) return;
         setActivity("idle");
         if (desired.current) restart.current = setTimeout(begin, 350);
       };
       try { speech.start(); } catch {
-        recognition.current = null; desired.current = false; setActivity("idle");
+        recognition.current = null; desired.current = false; finish(); setActivity("idle");
         setError("Could not start the microphone. Please try again.");
       }
     };
     begin();
   };
 
-  return { support, activity, error, preview, start, stop };
+  return { support, activity, error, start, stop };
 }

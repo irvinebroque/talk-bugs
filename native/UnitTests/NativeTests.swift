@@ -36,6 +36,15 @@ final class NativeTests: XCTestCase {
         XCTAssertFalse(model.store.jobs().contains(where: { $0.id == job.id }))
         XCTAssertEqual(model.receipts[job.id.uuidString], "discarded")
     }
+    @MainActor func testParticipantIdentitySurvivesModelRecreationAndPairedAdoption() {
+        let original = Identity.session()
+        XCTAssertEqual(Identity.session(), original)
+        let paired = UUID()
+        Identity.adopt(paired)
+        XCTAssertEqual(Identity.session(), paired)
+        XCTAssertEqual(RoomModel().session, paired)
+        Identity.adopt(original)
+    }
     @MainActor func testReleaseWhilePermissionIsPendingPreventsRecording() async throws {
         var permission: CheckedContinuation<Bool, Never>?
         let recorder = VoiceRecorder(requestPermission: {

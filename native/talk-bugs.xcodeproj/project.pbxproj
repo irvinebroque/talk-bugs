@@ -27,8 +27,10 @@
 		ABEA4FC4872C6204AC066567 /* Storage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7DBA2DACCB9825EC72B102 /* Storage.swift */; };
 		AF1B39090E2ACC8FA81E715F /* WatchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9868AAD5B5900503937C655 /* WatchModel.swift */; };
 		B17550F394F5AF98E8CE3C16 /* TalkBugsControls.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BDF7B700728684E10464C235 /* TalkBugsControls.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B3E9316C2DBBA76A79876BFE /* IncomingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A2D07AF7E1E25311AA5A6A0 /* IncomingView.swift */; };
 		C036EA6C8D7DBCB7FD23CAF6 /* WatchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE83404F39DED7A58F18B102 /* WatchView.swift */; };
 		C1D9FED3167E35CA95B6FE72 /* TalkBugsCore in Frameworks */ = {isa = PBXBuildFile; productRef = DDAB4AD1AF05E120A589BCB5 /* TalkBugsCore */; };
+		C9A667EE9AE79BC95BFA01A4 /* IncomingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A2D07AF7E1E25311AA5A6A0 /* IncomingView.swift */; };
 		CB4E10AC6C33C94C4EF6AF29 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9207DA9E8A0D96465ECFC0F7 /* Assets.xcassets */; };
 		CC7F423A984E2E89BCFECAD9 /* PhoneBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B31DF0E87B834C536B5EFB /* PhoneBridge.swift */; };
 		D2743A24A6A33166F345844C /* RoomModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB8FE7D86774CD3D37BF87D /* RoomModel.swift */; };
@@ -125,6 +127,7 @@
 		44F7BB176980DB38D24E0C06 /* TalkBugs.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TalkBugs.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4B6B00411BD0DFE3C41A1DE0 /* Controls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Controls.swift; sourceTree = "<group>"; };
 		52ABDFF932ACE7A7EDB5F8B5 /* TalkBugsWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TalkBugsWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A2D07AF7E1E25311AA5A6A0 /* IncomingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingView.swift; sourceTree = "<group>"; };
 		5EC815C0E59C79AFD1D85390 /* TalkIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalkIntent.swift; sourceTree = "<group>"; };
 		6D7DBA2DACCB9825EC72B102 /* Storage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Storage.swift; sourceTree = "<group>"; };
 		71181E53790EA08857F3ED6F /* TalkBugsWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TalkBugsWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -279,6 +282,7 @@
 		D55FD0CD512694C7140F7DC5 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				5A2D07AF7E1E25311AA5A6A0 /* IncomingView.swift */,
 				8966F3783B08744B30F1EDCD /* PushToTalkButton.swift */,
 				94D8FD816D962403E597B584 /* Recorder.swift */,
 				BEB8FE7D86774CD3D37BF87D /* RoomModel.swift */,
@@ -536,6 +540,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B3E9316C2DBBA76A79876BFE /* IncomingView.swift in Sources */,
 				7E15FCA401C1D84E477BD87E /* PushToTalkButton.swift in Sources */,
 				E080FA415EE945B94A4070AC /* Recorder.swift in Sources */,
 				D2743A24A6A33166F345844C /* RoomModel.swift in Sources */,
@@ -567,6 +572,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C9A667EE9AE79BC95BFA01A4 /* IncomingView.swift in Sources */,
 				0DBC653A681A727BC98970BB /* LocalTranscriber.swift in Sources */,
 				CC7F423A984E2E89BCFECAD9 /* PhoneBridge.swift in Sources */,
 				391F67843B6902739D2FF1DB /* PhoneModel.swift in Sources */,

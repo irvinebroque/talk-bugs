@@ -34,8 +34,8 @@ import WatchKit
         transferPending()
     }
     private func apply(_ context: [String: Any]) {
-        if let raw = context["room"] as? String, let id = UUID(uuidString: raw), !recorder.isRecording {
-            paired = true; UserDefaults.standard.set(true, forKey: "pairedRoom"); room.join(id)
+        if let raw = context["room"] as? String, let id = UUID(uuidString: raw), recordingJob == nil {
+            paired = true; UserDefaults.standard.set(true, forKey: "pairedRoom"); room.join(id, session: (context["session"] as? String).flatMap(UUID.init(uuidString:)))
         }
         if let receipts = context["receipts"] as? [String: String] {
             for var job in store.jobs() {
@@ -62,7 +62,7 @@ import WatchKit
                     guard let self, self.recordingJob?.id == job.id else { return }
                     self.recordingJob = nil; self.recordingTask = nil
                     guard success else { self.store.remove(job.id); self.error = VoiceError.recordingFailed.localizedDescription; return }
-                    do { try self.store.save(job); self.pending = self.store.jobs(); self.transferPending() }
+                    do { try self.store.save(job); self.pending = self.store.jobs(); self.refresh() }
                     catch { self.error = error.localizedDescription }
                 }
                 WKInterfaceDevice.current().play(.start)
@@ -83,6 +83,7 @@ import WatchKit
     func cancelRecording() {
         recordingTask?.cancel(); recordingTask = nil
         recorder.cancel(); if let job = recordingJob { store.remove(job.id) }; recordingJob = nil
+        refresh()
     }
     func transferPending() {
         let session = WCSession.default

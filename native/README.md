@@ -2,6 +2,8 @@
 
 Native SwiftUI clients for the same Cloudflare rooms as the web app. Open the app, invite someone, hold **Hold to talk** while speaking, then release to send. Recording stops after 30 seconds. Everyone reads text; there is no keyboard, dictation text field, or audio playback.
 
+The main screen shows other people’s latest and previous turns. History includes everyone’s words, including your own. iPhone speaker sections keep their positions; Watch groups have a stable vertically paged view with one page per person. Neither view automatically scrolls on transcript corrections.
+
 The native apps send completed messages. Multiple people can record simultaneously; the Durable Object orders messages when their text arrives. The existing browser client still streams partial transcripts.
 
 ## Build and run
@@ -15,7 +17,7 @@ xcodegen generate --spec native/project.yml
 
 For hardware, select your Apple development team for the app and both widget extensions, and connect a paired iPhone and Watch. The current team is `WL8UPH7Q7H`. If the team or bundle ID changes, update `public/.well-known/apple-app-site-association` and redeploy the Worker so HTTPS room invitations continue to open the app.
 
-Start on the iPhone: its room is passed to the Watch through WatchConnectivity. Invite links open that room in the native app when installed, or the web app otherwise. `talk-bugs://room/<room-uuid>` is also supported. The plus button creates another room. Pending recordings retain the room in which they were recorded.
+Start on the iPhone: its room and participant identity are passed to the Watch through WatchConnectivity. Sharing that identity keeps your own messages out of both incoming views. Invite links open that room in the native app when installed, or the web app otherwise. `talk-bugs://room/<room-uuid>` is also supported. The plus button creates another room. Pending recordings retain the room in which they were recorded.
 
 Add **Speak in talk-bugs** to iPhone Control Center, the Lock Screen controls, or an Action button shortcut. The Watch face **Speak** complication and iPhone shortcuts open the conversation without turning on the microphone. Hold the in-app control to record. VoiceOver also exposes explicit Start speaking and Finish speaking accessibility actions. Microphone permission is requested on the first hold; if the permission sheet interrupts the hold, hold again after allowing access. The app's shortcut URL is `https://talk-bugs.roundtrip.workers.dev/talk` (or `talk-bugs://talk`).
 
@@ -25,7 +27,7 @@ Add **Speak in talk-bugs** to iPhone Control Center, the Lock Screen controls, o
 - Watch records locally and sends its file to the paired iPhone using `WCSession.transferFile`. The iPhone transcribes it, then posts **only text** to Cloudflare. An unavailable iPhone delays sending; the Watch is not an independent transcription device.
 - A durable outbox holds up to 20 recordings. The iPhone deletes audio after transcription and retains text for retry. The Watch keeps its recording until the phone confirms that Cloudflare acknowledged the message. Files are excluded from backups; jobs older than 24 hours are purged on launch/refresh.
 - Retry preserves the message and participant IDs. Final messages cannot be overwritten. A failed message remains visible with Retry; server history is limited to 200 messages and 24 hours, so retries outside that retained window are not an indefinite deduplication guarantee.
-- Native readers poll authenticated HTTPS snapshots every second while active, with ETags and a three-second retry after network errors. Background readers pause. This version does not send APNs notifications or keep the Watch display awake. Losing the foreground ends a recording just like releasing the control; finishing transcription and delivery may continue within the OS execution budget.
+- Native readers poll authenticated HTTPS snapshots every second while active, with ETags and a three-second retry after network errors. Background readers pause; the shared phone/Watch presence expires through its lease when neither device is polling. This version does not send APNs notifications or keep the Watch display awake. Losing the foreground ends a recording just like releasing the control; finishing transcription and delivery may continue within the OS execution budget.
 - The iPhone attempts to finish received recordings during its background execution allowance. If iOS suspends it, work resumes when the app next runs. WatchConnectivity schedules delivery opportunistically; it does not promise instant transfer while the phone is locked or unavailable.
 
 No speech audio reaches the application backend. The server accepts only small JSON transcript requests, and rejects audio bodies. Apple handles microphone access, local speech assets, and the Watch-to-phone transport. Room links remain bearer invitations, without accounts or end-to-end encryption.
@@ -71,3 +73,7 @@ Hardware validation is still needed for microphone capture, Watch file delivery,
 ### Push-to-talk validation
 
 The web interaction is covered with mouse, touch, and Space/Enter holds; release outside the control; cancellation; focus loss; key repeat; and a delayed speech startup after release. Native UI tests cover hold-to-send, quick taps, release outside the control, persistence, and shortcuts that leave the microphone off. A native recorder test verifies that releasing during a pending permission request prevents a later start.
+
+### Incoming conversation validation
+
+Browser tests cover concurrent speakers without own-text distractions, stable positions during long partial revisions, manual scroll preservation, departures, two-turn context, full history, identity after reload, and one hold spanning several recognition results/restarts. Swift core tests cover the same speaker ordering and current/previous selection. Native UI tests cover incoming corrections, stable speaker positions, previous-turn context, own-text history, and the hold interaction. Speech-source and physical-device limitations above still apply.

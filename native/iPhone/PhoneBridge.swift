@@ -13,7 +13,7 @@ import WatchConnectivity
     }
     func sync() {
         guard WCSession.default.activationState == .activated, WCSession.default.isWatchAppInstalled else { return }
-        try? WCSession.default.updateApplicationContext(["room": model.room.room.uuidString, "receipts": model.receipts])
+        try? WCSession.default.updateApplicationContext(["room": model.room.room.uuidString, "session": model.room.session.uuidString, "receipts": model.receipts])
     }
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {
         Task { @MainActor in self.sync(); self.model.receive() }
@@ -42,7 +42,7 @@ import WatchConnectivity
         let reply = Reply(replyHandler)
         Task { @MainActor in
             if let retry { self.model.retry(retry) }
-            reply.call(["room": self.model.room.room.uuidString, "receipts": self.model.receipts])
+            reply.call(["room": self.model.room.room.uuidString, "session": self.model.room.session.uuidString, "receipts": self.model.receipts])
             self.model.receive()
         }
     }

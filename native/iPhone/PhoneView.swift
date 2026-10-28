@@ -4,6 +4,7 @@ import TalkBugsCore
 struct PhoneView: View {
     @Bindable var model: PhoneModel
     @State private var newRoom = false
+    @State private var history = false
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -12,32 +13,31 @@ struct PhoneView: View {
                     Spacer()
                     Text("\(model.room.participants.count) in room")
                 }.font(.caption).foregroundStyle(.secondary).padding(.horizontal).padding(.bottom, 8)
-                ScrollViewReader { scroll in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 20) {
-                            if model.room.messages.isEmpty {
-                                ContentUnavailableView("No messages yet", systemImage: "bubble.left", description: Text("Invite someone, then hold to talk."))
-                            }
-                            ForEach(model.room.messages) { message in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack {
-                                        Text(message.speaker.id == model.room.selfID ? "You" : message.speaker.name).fontWeight(.medium)
-                                        Text(Date(timeIntervalSince1970: message.startedAt / 1000), style: .time).foregroundStyle(.secondary)
-                                    }.font(.caption)
-                                    Text(message.text).textSelection(.enabled)
-                                        .foregroundStyle(message.status == "live" ? .secondary : .primary)
-                                }.frame(maxWidth: .infinity, alignment: .leading).id(message.id)
-                                .accessibilityIdentifier("message-\(message.utteranceId)")
-                            }
-                        }.padding()
+                GeometryReader { geometry in
+                    if model.room.conversation.incoming.isEmpty {
+                        ContentUnavailableView(model.room.participants.contains { $0.id != model.room.selfID } ? "Waiting for someone to speak" : "No one else here", systemImage: "bubble.left", description: Text("Read their words here."))
+                    } else if model.room.conversation.incoming.count == 1 {
+                        IncomingSpeakerView(speaker: model.room.conversation.incoming[0]).padding()
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 24) {
+                                ForEach(model.room.conversation.incoming) { speaker in
+                                    IncomingSpeakerView(speaker: speaker).padding(.bottom, 12)
+                                        .frame(height: max(180, (geometry.size.height - 56) / 2))
+                                        .overlay(alignment: .bottom) { Divider() }
+                                }
+                            }.padding()
+                        }.defaultScrollAnchor(.top)
                     }
-                    .defaultScrollAnchor(.bottom)
                 }
                 Divider()
                 VStack(spacing: 10) {
                     PushToTalkButton(recording: model.recorder.isRecording, begin: model.beginRecording, end: model.endRecording)
                         .tint(.primary)
-                    if model.processing { ProgressView("Sending…").font(.caption) }
+                    ZStack {
+                        Color.clear
+                        if model.processing { ProgressView("Sending…").font(.caption) }
+                    }.frame(height: 20)
                     ForEach(model.pending) { job in
                         if let error = job.error {
                             HStack {
@@ -54,7 +54,14 @@ struct PhoneView: View {
             .navigationTitle("talk-bugs").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("New room", systemImage: "plus") { newRoom = true }.labelStyle(.iconOnly) }
+                ToolbarItem(placement: .topBarTrailing) { Button("History", systemImage: "clock.arrow.circlepath") { history = true }.labelStyle(.iconOnly) }
                 ToolbarItem(placement: .topBarTrailing) { ShareLink(item: RoomLink.url(model.room.room)) { Label("Invite", systemImage: "square.and.arrow.up") } }
+            }
+            .sheet(isPresented: $history) {
+                NavigationStack {
+                    RoomHistoryView(room: model.room)
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { history = false } } }
+                }
             }
             .confirmationDialog("Open a new room?", isPresented: $newRoom) {
                 Button("New room") { model.cancelRecording(); model.room.join(UUID()) }.accessibilityIdentifier("confirm-new-room")

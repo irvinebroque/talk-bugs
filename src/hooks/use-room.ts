@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { mergeMessage, type Message, type Participant, type ServerEvent, type Transcript } from "../../shared/protocol";
+import { mergeMessage, type Message, type Participant, type ServerEvent, type Transcript, UUID } from "../../shared/protocol";
 
 export function useRoom(roomId: string) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -8,7 +8,15 @@ export function useRoom(roomId: string) {
   const [status, setStatus] = useState<"connecting" | "connected" | "reconnecting" | "closed">("connecting");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(0);
-  const session = useRef(crypto.randomUUID());
+  const [session] = useState(() => {
+    const key = `talk-bugs.session.${roomId}`;
+    try {
+      const saved = sessionStorage.getItem(key);
+      if (saved && UUID.test(saved)) return saved;
+      const id = crypto.randomUUID(); sessionStorage.setItem(key, id); return id;
+    } catch { return crypto.randomUUID(); }
+  });
+  const [speakers, setSpeakers] = useState<Participant[]>([]);
   const socket = useRef<WebSocket | null>(null);
   const outbox = useRef(new Map<string, Transcript>());
   const sent = useRef(new Map<string, number>());
@@ -32,6 +40,11 @@ export function useRoom(roomId: string) {
   }, [flush]);
 
   useEffect(() => {
+    const remember = (people: Participant[]) => setSpeakers(old => {
+      const known = new Set(old.map(p => p.id));
+      const added = people.filter(p => { if (known.has(p.id)) return false; known.add(p.id); return true; });
+      return added.length ? [...old, ...added] : old;
+    });
     let disposed = false;
     let retries = 0;
     let reconnect: ReturnType<typeof setTimeout>;
@@ -41,7 +54,7 @@ export function useRoom(roomId: string) {
       ready.current = false;
       sent.current.clear();
       const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-      const ws = new WebSocket(`${scheme}//${location.host}/api/rooms/${roomId}/socket?session=${session.current}`);
+      const ws = new WebSocket(`${scheme}//${location.host}/api/rooms/${roomId}/socket?session=${session}`);
       socket.current = ws;
       ws.onopen = () => { lastPong = Date.now(); };
       ws.onmessage = event => {
@@ -50,10 +63,12 @@ export function useRoom(roomId: string) {
         let data: ServerEvent;
         try { data = JSON.parse(event.data) as ServerEvent; } catch { return; }
         if (data.type === "welcome") {
+          remember(data.messages.filter(m => m.text).map(m => m.speaker));
           setSelf(data.self); setParticipants(data.participants); setMessages(data.messages);
           ready.current = true; retries = 0; setStatus("connected"); setError(""); flush();
-        } else if (data.type === "message") setMessages(old => mergeMessage(old, data.message));
-        else if (data.type === "presence") setParticipants(data.participants);
+        } else if (data.type === "message") {
+          if (data.message.text) remember([data.message.speaker]); setMessages(old => mergeMessage(old, data.message));
+        } else if (data.type === "presence") setParticipants(data.participants);
         else if (data.type === "ack") {
           const queued = outbox.current.get(data.utteranceId);
           if (queued && queued.revision <= data.revision) outbox.current.delete(data.utteranceId);
@@ -92,7 +107,7 @@ export function useRoom(roomId: string) {
       window.removeEventListener("online", online);
       socket.current?.close(1000, "Left room");
     };
-  }, [roomId, flush]);
+  }, [roomId, session, flush]);
 
-  return { messages, participants, self, status, error, pending, publish };
+  return { messages, participants, speakers, self, status, error, pending, publish };
 }
