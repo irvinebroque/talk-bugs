@@ -19,8 +19,10 @@
 		511B80FC5A5BB9052097A12F /* TalkBugsWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 52ABDFF932ACE7A7EDB5F8B5 /* TalkBugsWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		688047361C656D378CEAAEA9 /* Storage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7DBA2DACCB9825EC72B102 /* Storage.swift */; };
 		7C17CEEAC5AFBAA9137A4B24 /* PhoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFD0BAEC1A68DC5A12401020 /* PhoneView.swift */; };
+		7E15FCA401C1D84E477BD87E /* PushToTalkButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8966F3783B08744B30F1EDCD /* PushToTalkButton.swift */; };
 		84FB33FC4E62438AC4DFEA4B /* TalkIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC815C0E59C79AFD1D85390 /* TalkIntent.swift */; };
 		914C96B7153DB53D177FBEE0 /* TalkBugsCore in Frameworks */ = {isa = PBXBuildFile; productRef = AAF79F2582CFF63E1029D069 /* TalkBugsCore */; };
+		916145C7DFC1862BB5D39B47 /* PushToTalkButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8966F3783B08744B30F1EDCD /* PushToTalkButton.swift */; };
 		94A709CAC92CCD5FDF8278BE /* TalkBugsWatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 71181E53790EA08857F3ED6F /* TalkBugsWatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		ABEA4FC4872C6204AC066567 /* Storage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7DBA2DACCB9825EC72B102 /* Storage.swift */; };
 		AF1B39090E2ACC8FA81E715F /* WatchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9868AAD5B5900503937C655 /* WatchModel.swift */; };
@@ -127,6 +129,7 @@
 		6D7DBA2DACCB9825EC72B102 /* Storage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Storage.swift; sourceTree = "<group>"; };
 		71181E53790EA08857F3ED6F /* TalkBugsWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TalkBugsWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		795187716E8D214C004C793A /* TalkBugs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TalkBugs.entitlements; sourceTree = "<group>"; };
+		8966F3783B08744B30F1EDCD /* PushToTalkButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushToTalkButton.swift; sourceTree = "<group>"; };
 		90D819D019D78DA1341E1C20 /* TalkBugsWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalkBugsWatchApp.swift; sourceTree = "<group>"; };
 		9207DA9E8A0D96465ECFC0F7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		94D8FD816D962403E597B584 /* Recorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recorder.swift; sourceTree = "<group>"; };
@@ -276,6 +279,7 @@
 		D55FD0CD512694C7140F7DC5 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				8966F3783B08744B30F1EDCD /* PushToTalkButton.swift */,
 				94D8FD816D962403E597B584 /* Recorder.swift */,
 				BEB8FE7D86774CD3D37BF87D /* RoomModel.swift */,
 				6D7DBA2DACCB9825EC72B102 /* Storage.swift */,
@@ -532,6 +536,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7E15FCA401C1D84E477BD87E /* PushToTalkButton.swift in Sources */,
 				E080FA415EE945B94A4070AC /* Recorder.swift in Sources */,
 				D2743A24A6A33166F345844C /* RoomModel.swift in Sources */,
 				ABEA4FC4872C6204AC066567 /* Storage.swift in Sources */,
@@ -566,6 +571,7 @@
 				CC7F423A984E2E89BCFECAD9 /* PhoneBridge.swift in Sources */,
 				391F67843B6902739D2FF1DB /* PhoneModel.swift in Sources */,
 				7C17CEEAC5AFBAA9137A4B24 /* PhoneView.swift in Sources */,
+				916145C7DFC1862BB5D39B47 /* PushToTalkButton.swift in Sources */,
 				2B174184B65EEF17CF018711 /* Recorder.swift in Sources */,
 				400CF7DCAAF4AEA88B0FFA7D /* RoomModel.swift in Sources */,
 				688047361C656D378CEAAEA9 /* Storage.swift in Sources */,

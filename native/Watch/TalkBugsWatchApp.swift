@@ -6,15 +6,13 @@ import SwiftUI
     var body: some Scene {
         WindowGroup {
             WatchView(model: model)
-                .onOpenURL { url in
-                    if url.scheme == "talk-bugs", url.host == "talk" { Task { await model.toggleRecording() } }
-                }
+                .onOpenURL { _ in /* The complication opens the hold-to-talk control. */ }
                 .task { model.refresh(); if model.paired && phase == .active { model.room.resume() } }
                 .onChange(of: model.paired) { _, paired in if paired && phase == .active { model.room.resume() } }
         }
         .onChange(of: phase) { _, phase in
             if phase == .active { model.refresh(); if model.paired && phase == .active { model.room.resume() } }
-            else if phase == .background { model.room.pause() }
+            else { model.endRecording(); if phase == .background { model.room.pause() } }
         }
     }
 }

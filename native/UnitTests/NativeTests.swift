@@ -36,4 +36,22 @@ final class NativeTests: XCTestCase {
         XCTAssertFalse(model.store.jobs().contains(where: { $0.id == job.id }))
         XCTAssertEqual(model.receipts[job.id.uuidString], "discarded")
     }
+    @MainActor func testReleaseWhilePermissionIsPendingPreventsRecording() async throws {
+        var permission: CheckedContinuation<Bool, Never>?
+        let recorder = VoiceRecorder(requestPermission: {
+            await withCheckedContinuation { permission = $0 }
+        })
+        let task = Task {
+            try await recorder.start(at: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString + ".wav")) { _ in
+                XCTFail("A released press must not produce a recording")
+            }
+        }
+        while permission == nil { await Task.yield() }
+        recorder.stop()
+        permission?.resume(returning: true)
+        do { try await task.value; XCTFail("The pending start should be cancelled") }
+        catch is CancellationError { }
+        XCTAssertFalse(recorder.isRecording)
+        XCTAssertFalse(recorder.isStarting)
+    }
 }

@@ -16,7 +16,7 @@ struct PhoneView: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 20) {
                             if model.room.messages.isEmpty {
-                                ContentUnavailableView("No messages yet", systemImage: "bubble.left", description: Text("Invite someone, then start speaking."))
+                                ContentUnavailableView("No messages yet", systemImage: "bubble.left", description: Text("Invite someone, then hold to talk."))
                             }
                             ForEach(model.room.messages) { message in
                                 VStack(alignment: .leading, spacing: 4) {
@@ -35,19 +35,8 @@ struct PhoneView: View {
                 }
                 Divider()
                 VStack(spacing: 10) {
-                    if model.recorder.isRecording {
-                        Text("\(model.recorder.elapsed)s / 30s").monospacedDigit().font(.caption)
-                    }
-                    Button {
-                        Task { await model.toggleRecording() }
-                    } label: {
-                        Label(model.recorder.isRecording ? "Send" : "Speak", systemImage: model.recorder.isRecording ? "stop.fill" : "mic.fill")
-                            .frame(maxWidth: .infinity).padding(.vertical, 8)
-                    }.buttonStyle(.borderedProminent).tint(.primary)
-                    .accessibilityIdentifier("speak").disabled(model.recorder.isStarting)
-                    if model.recorder.isRecording {
-                        Button("Cancel", role: .cancel) { model.cancelRecording() }.font(.caption)
-                    }
+                    PushToTalkButton(recording: model.recorder.isRecording, begin: model.beginRecording, end: model.endRecording)
+                        .tint(.primary)
                     if model.processing { ProgressView("Sending…").font(.caption) }
                     ForEach(model.pending) { job in
                         if let error = job.error {

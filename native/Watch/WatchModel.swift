@@ -12,6 +12,8 @@ import WatchKit
     private(set) var paired = UserDefaults.standard.bool(forKey: "pairedRoom")
     var error: String?
     private var recordingJob: VoiceJob?
+    private var recordingTask: Task<Void, Never>?
+    private var endingRecording = false
     override init() {
         super.init(); store.purge(); pending = store.jobs()
         #if DEBUG && targetEnvironment(simulator)
@@ -47,25 +49,39 @@ import WatchKit
         }
         pending = store.jobs()
     }
-    func toggleRecording() async {
-        guard !recorder.isStarting else { return }
-        if recorder.isRecording { recorder.stop(); return }
+    func beginRecording() {
+        guard recordingJob == nil, !recorder.isStarting, !recorder.isRecording else { return }
         guard paired else { error = "Open talk-bugs on your iPhone first."; return }
         guard pending.count < 20 else { error = VoiceError.queueFull.localizedDescription; return }
         let job = VoiceJob(room: room.room, session: room.session)
-        recordingJob = job; error = nil
-        do {
-            try await recorder.start(at: store.audio(job.id)) { [weak self] success in
-                guard let self else { return }
-                self.recordingJob = nil
-                guard success else { self.store.remove(job.id); self.error = VoiceError.recordingFailed.localizedDescription; return }
-                do { try self.store.save(job); self.pending = self.store.jobs(); self.transferPending() }
-                catch { self.error = error.localizedDescription }
+        recordingJob = job; endingRecording = false; error = nil
+        recordingTask = Task { [weak self, job] in
+            guard let self else { return }
+            do {
+                try await self.recorder.start(at: self.store.audio(job.id)) { [weak self] success in
+                    guard let self, self.recordingJob?.id == job.id else { return }
+                    self.recordingJob = nil; self.recordingTask = nil
+                    guard success else { self.store.remove(job.id); self.error = VoiceError.recordingFailed.localizedDescription; return }
+                    do { try self.store.save(job); self.pending = self.store.jobs(); self.transferPending() }
+                    catch { self.error = error.localizedDescription }
+                }
+                WKInterfaceDevice.current().play(.start)
+            } catch {
+                guard self.recordingJob?.id == job.id else { return }
+                self.recordingJob = nil; self.recordingTask = nil; self.store.remove(job.id)
+                if !(error is CancellationError) { self.error = error.localizedDescription }
             }
-            WKInterfaceDevice.current().play(.start)
-        } catch { recordingJob = nil; store.remove(job.id); self.error = error.localizedDescription }
+        }
+    }
+    func endRecording() {
+        guard recordingJob != nil, !endingRecording else { return }
+        endingRecording = true
+        // A tap or a released permission request must never become a latched microphone.
+        if recorder.isRecording, recorder.duration >= 0.2 { recorder.stop() }
+        else { cancelRecording() }
     }
     func cancelRecording() {
+        recordingTask?.cancel(); recordingTask = nil
         recorder.cancel(); if let job = recordingJob { store.remove(job.id) }; recordingJob = nil
     }
     func transferPending() {

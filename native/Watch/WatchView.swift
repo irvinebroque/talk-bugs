@@ -31,14 +31,8 @@ struct WatchView: View {
             .defaultScrollAnchor(.bottom)
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 4) {
-                    if model.recorder.isRecording { Text("\(model.recorder.elapsed)s / 30s").font(.caption2).monospacedDigit() }
-                    Button {
-                        Task { await model.toggleRecording() }
-                    } label: { Label(model.recorder.isRecording ? "Send" : "Speak", systemImage: model.recorder.isRecording ? "stop.fill" : "mic.fill") }
-                    .buttonStyle(.borderedProminent).tint(.white).foregroundStyle(.black)
-                    .disabled(!model.paired || model.recorder.isStarting).handGestureShortcut(.primaryAction)
-                    .accessibilityIdentifier("speak")
-                    if model.recorder.isRecording { Button("Cancel", role: .cancel) { model.cancelRecording() }.font(.caption2) }
+                    PushToTalkButton(recording: model.recorder.isRecording, begin: model.beginRecording, end: model.endRecording)
+                        .tint(.white).foregroundStyle(.black).disabled(!model.paired)
                 }.padding(.top, 4).background(.background)
             }
             .navigationTitle("talk-bugs")

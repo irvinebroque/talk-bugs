@@ -10,6 +10,8 @@ import UIKit
     private let transcriber = LocalTranscriber()
     private var work: Task<Void, Never>?
     private var recordingJob: VoiceJob?
+    private var recordingTask: Task<Void, Never>?
+    private var endingRecording = false
     private(set) var pending: [VoiceJob] = []
     private(set) var processing = false
     var error: String?
@@ -17,33 +19,41 @@ import UIKit
     var receipts: [String: String] { UserDefaults.standard.dictionary(forKey: "receipts") as? [String: String] ?? [:] }
     init() { store.purge(); reload() }
     func reload() { store.purge(); pending = store.jobs() }
-    func toggleRecording() async {
-        guard !recorder.isStarting else { return }
-        if recorder.isRecording { recorder.stop(); return }
+    func beginRecording() {
+        guard recordingJob == nil, !recorder.isStarting, !recorder.isRecording else { return }
         guard pending.count < 20 else { error = VoiceError.queueFull.localizedDescription; return }
-        let job = VoiceJob(room: room.room, session: room.session)
-        error = nil; recordingJob = job
+        var job = VoiceJob(room: room.room, session: room.session)
         #if DEBUG && targetEnvironment(simulator)
-        if let text = ProcessInfo.processInfo.environment["TALK_BUGS_TEST_TRANSCRIPT"] {
-            // UI-test speech source; compiled out of every device build.
-            recordingJob = nil
-            var testJob = job; testJob.text = text
-            do { try store.save(testJob); reload(); process() } catch { self.error = error.localizedDescription }
-            return
-        }
+        job.text = ProcessInfo.processInfo.environment["TALK_BUGS_TEST_TRANSCRIPT"]
         #endif
-        do {
-            try await recorder.start(at: store.audio(job.id)) { [weak self] success in
-                guard let self else { return }
-                self.recordingJob = nil
-                guard success else { self.store.remove(job.id); self.error = VoiceError.recordingFailed.localizedDescription; return }
-                do { try self.store.save(job); self.reload(); self.process() }
-                catch { self.error = error.localizedDescription }
+        recordingJob = job; endingRecording = false; error = nil
+        recordingTask = Task { [weak self, job] in
+            guard let self else { return }
+            do {
+                try await self.recorder.start(at: self.store.audio(job.id)) { [weak self] success in
+                    guard let self, self.recordingJob?.id == job.id else { return }
+                    self.recordingJob = nil; self.recordingTask = nil
+                    guard success else { self.store.remove(job.id); self.error = VoiceError.recordingFailed.localizedDescription; return }
+                    do { try self.store.save(job); self.reload(); self.process() }
+                    catch { self.error = error.localizedDescription }
+                }
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } catch {
+                guard self.recordingJob?.id == job.id else { return }
+                self.recordingJob = nil; self.recordingTask = nil; self.store.remove(job.id)
+                if !(error is CancellationError) { self.error = error.localizedDescription }
             }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        } catch { recordingJob = nil; store.remove(job.id); self.error = error.localizedDescription }
+        }
+    }
+    func endRecording() {
+        guard recordingJob != nil, !endingRecording else { return }
+        endingRecording = true
+        // A tap or a released permission request must never become a latched microphone.
+        if recorder.isRecording, recorder.duration >= 0.2 { recorder.stop() }
+        else { cancelRecording() }
     }
     func cancelRecording() {
+        recordingTask?.cancel(); recordingTask = nil
         recorder.cancel()
         if let job = recordingJob { store.remove(job.id) }; recordingJob = nil
     }

@@ -6,7 +6,7 @@ Live app: [talk-bugs.roundtrip.workers.dev](https://talk-bugs.roundtrip.workers.
 
 ## Native iPhone and Apple Watch apps
 
-The SwiftUI apps in [`native/`](native/README.md) use completed spoken turns: Speak, then Send. Watch recordings go to the paired iPhone for local transcription; only text goes to Cloudflare. Native clients share rooms with browser clients through HTTPS snapshots and transcript posts. See the native README for Xcode setup, controls/complications, tests, and the simulator/hardware validation boundary.
+The SwiftUI apps in [`native/`](native/README.md) use push-to-talk: hold the microphone button to speak, then release to send the completed turn. Watch recordings go to the paired iPhone for local transcription; only text goes to Cloudflare. Native clients share rooms with browser clients through HTTPS snapshots and transcript posts. See the native README for Xcode setup, controls/complications, tests, and the simulator/hardware validation boundary.
 
 ## Run the web app
 
@@ -36,7 +36,7 @@ talk-bugs uses `SpeechRecognition` or `webkitSpeechRecognition`, with `continuou
 
 Standard recognition may send audio to the browser vendor’s service. Only text reaches the Cloudflare application backend. Browser application code does not record, upload, or play audio. The native apps temporarily record audio locally, as described above. There is no typed fallback. Browsers without either recognition constructor can still read and invite.
 
-Microphone access starts only after clicking Start speaking. The microphone stops when the tab becomes hidden or the room disconnects. Reconnection never restarts it without another click. HTTPS or localhost and microphone permission are required.
+Hold the microphone button to speak; release it to finish the turn. With the button focused, holding Space or Enter works too. The microphone also stops when the window loses focus, the tab becomes hidden, or the room disconnects. Reconnection never restarts it without a fresh press. HTTPS or localhost and microphone permission are required.
 
 Tests simulate the speech engine and exercise the real UI, WebSockets, and local Cloudflare runtime. They do not validate microphone hardware, a particular language pack, or real transcription accuracy. Check those manually in a supported browser before relying on transcription.
 

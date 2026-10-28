@@ -11,9 +11,6 @@ import TalkBugsCore
     }
     private func open(_ url: URL) {
         if let room = RoomLink.parse(url) { model.cancelRecording(); model.room.join(room) }
-        else if (url.scheme == "talk-bugs" && url.host == "talk") || (url.scheme == "https" && url.host == RoomLink.origin.host && url.path == "/talk") {
-            Task { await model.toggleRecording() }
-        }
     }
     var body: some Scene {
         WindowGroup {
@@ -26,7 +23,7 @@ import TalkBugsCore
         }
         .onChange(of: phase) { _, phase in
             if phase == .active { model.room.resume(); model.process(); bridge.sync() }
-            else if phase == .background { model.room.pause() }
+            else { model.endRecording(); if phase == .background { model.room.pause() } }
         }
     }
 }

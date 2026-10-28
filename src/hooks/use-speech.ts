@@ -9,6 +9,7 @@ export function useSpeech(publish: (update: Transcript) => void, connected: bool
   const [preview, setPreview] = useState("");
   const recognition = useRef<BrowserRecognition | null>(null);
   const local = useRef(false);
+  const started = useRef(false);
   const desired = useRef(false);
   const mounted = useRef(true);
   const restart = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -29,7 +30,8 @@ export function useSpeech(publish: (update: Transcript) => void, connected: bool
     clearTimeout(restart.current);
     if (recognition.current) {
       setActivity("stopping");
-      recognition.current.stop();
+      if (started.current) recognition.current.stop();
+      else recognition.current.abort();
     } else { finish(); setActivity("idle"); }
   }, [finish]);
 
@@ -75,8 +77,14 @@ export function useSpeech(publish: (update: Transcript) => void, connected: bool
       if ("processLocally" in speech) speech.processLocally = local.current;
       speech.lang = lang; speech.continuous = true; speech.interimResults = true; speech.maxAlternatives = 1;
       recognition.current = speech; segments.current.clear(); setActivity("starting");
-      speech.onstart = () => { if (mounted.current) setActivity("listening"); };
+      started.current = false;
+      speech.onstart = () => {
+        if (!desired.current || recognition.current !== speech) { speech.abort(); return; }
+        started.current = true;
+        if (mounted.current) setActivity("listening");
+      };
       speech.onresult = event => {
+        if (recognition.current !== speech) return;
         for (let index = event.resultIndex; index < event.results.length; index++) {
           const result = event.results[index];
           const old = segments.current.get(index);
@@ -88,7 +96,7 @@ export function useSpeech(publish: (update: Transcript) => void, connected: bool
           segments.current.set(index, update); emit.current(update);
           setPreview(text);
           if (fullText.length >= MAX_TEXT) {
-            setError("That phrase reached the length limit. Pause, then start speaking again.");
+            setError("That phrase reached the length limit. Release, then hold to talk again.");
             desired.current = false; speech.stop();
           }
         }
@@ -101,7 +109,8 @@ export function useSpeech(publish: (update: Transcript) => void, connected: bool
         }
       };
       speech.onerror = event => {
-        if (event.error === "no-speech") return;
+        if (recognition.current !== speech) return;
+        if (event.error === "no-speech" || (event.error === "aborted" && !desired.current)) return;
         desired.current = false;
         if (event.error === "language-not-supported") local.current = false;
         const errors: Record<string, string> = {
@@ -114,7 +123,8 @@ export function useSpeech(publish: (update: Transcript) => void, connected: bool
         setError(errors[event.error] ?? "Speech recognition stopped. Please try again.");
       };
       speech.onend = () => {
-        finish(); recognition.current = null;
+        if (recognition.current !== speech) return;
+        finish(); recognition.current = null; started.current = false;
         if (!mounted.current) return;
         setActivity("idle");
         if (desired.current) restart.current = setTimeout(begin, 350);

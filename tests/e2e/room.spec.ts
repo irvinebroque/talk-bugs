@@ -3,8 +3,8 @@ import WebSocket from "ws";
 import type { ServerEvent } from "../../../shared/protocol";
 
 // Mock only the browser speech engine; all UI, network, and Durable Objects are real.
-async function speechEngine(page: Page, available = "available", kind = "local") {
-  await page.addInitScript(({ available, kind }) => {
+async function speechEngine(page: Page, available = "available", kind = "local", delayedStart = false) {
+  await page.addInitScript(({ available, kind, delayedStart }) => {
     class Speech {
       processLocally?: boolean;
       constructor() { if (kind === "local") this.processLocally = false; else delete this.processLocally; }
@@ -17,15 +17,23 @@ async function speechEngine(page: Page, available = "available", kind = "local")
       start() {
         if (Boolean(this.processLocally) !== (kind === "local" && available === "available")) throw new Error("Wrong recognition mode");
         (window as any).__speech = this;
-        this.onstart?.();
+        (window as any).__speechStarts = ((window as any).__speechStarts ?? 0) + 1;
+        if (!delayedStart) this.onstart?.();
       }
-      stop() { this.onend?.(); }
-      abort() { this.onend?.(); }
+      stop() { (window as any).__speechStops = ((window as any).__speechStops ?? 0) + 1; this.onend?.(); }
+      abort() { (window as any).__speechAborts = ((window as any).__speechAborts ?? 0) + 1; this.onerror?.({ error: "aborted" }); this.onend?.(); }
     }
     if (kind !== "local") Object.defineProperty(Speech, "available", { value: undefined });
     (window as any).SpeechRecognition = kind === "prefixed" ? undefined : Speech;
     (window as any).webkitSpeechRecognition = kind === "prefixed" ? Speech : undefined;
-  }, { available, kind });
+  }, { available, kind, delayedStart });
+}
+
+async function hold(page: Page) {
+  const button = page.getByTestId("push-to-talk");
+  await expect(button).toBeEnabled();
+  await button.hover();
+  await page.mouse.down();
 }
 
 async function say(page: Page, text: string, final = false) {
@@ -39,8 +47,8 @@ test("three people can speak at once, revise in place, and reload history", asyn
   const pages = await Promise.all(contexts.map(c => c.newPage()));
   const path = `/r/${crypto.randomUUID()}`;
   for (const page of pages) { await speechEngine(page); await page.goto(path); }
-  for (const page of pages) await expect(page.getByRole("button", { name: "Start speaking", exact: true })).toBeEnabled();
-  for (const page of pages) await page.getByRole("button", { name: "Start speaking", exact: true }).click();
+  for (const page of pages) await expect(page.getByRole("button", { name: "Hold to talk", exact: true })).toBeEnabled();
+  for (const page of pages) await hold(page);
   await Promise.all([say(pages[0], "A green"), say(pages[1], "At the same time"), say(pages[2], "A third voice")]);
   for (const page of pages) await expect(page.getByTestId("message")).toHaveCount(3);
   const originalOrder = await pages[2].getByTestId("message").allTextContents();
@@ -61,7 +69,7 @@ test("three people can speak at once, revise in place, and reload history", asyn
 test("local recognition handles permission errors without a typed fallback", async ({ page }) => {
   await speechEngine(page);
   await page.goto(`/r/${crypto.randomUUID()}`);
-  await page.getByRole("button", { name: "Start speaking", exact: true }).click();
+  await hold(page);
   await page.evaluate(() => {
     (window as any).__speech.onerror({ error: "not-allowed" });
     (window as any).__speech.onend();
@@ -86,7 +94,7 @@ test("connection loss pauses the microphone and replays the latest unacknowledge
   });
   await speechEngine(writer);
   await writer.goto(path); await reader.goto(path);
-  await writer.getByRole("button", { name: "Start speaking", exact: true }).click();
+  await hold(writer);
   await say(writer, "Before the interruption");
   await expect(reader.getByTestId("message")).toHaveCount(1);
   await writer.evaluate(() => {
@@ -95,7 +103,7 @@ test("connection loss pauses the microphone and replays the latest unacknowledge
   });
   await expect(reader.getByTestId("message").filter({ hasText: "The complete thought survives." })).toHaveAttribute("data-status", "final");
   await expect(reader.getByTestId("message")).toHaveCount(1);
-  await expect(writer.getByRole("button", { name: "Start speaking", exact: true })).toBeEnabled();
+  await expect(writer.getByRole("button", { name: "Hold to talk", exact: true })).toBeEnabled();
   await expect(writer.getByText(/phrase.*syncing/)).toHaveCount(0);
   await writerContext.close(); await readerContext.close();
 });
@@ -190,16 +198,101 @@ for (const [kind, available] of [
   test(`standard recognition streams revisions: ${kind}, local pack ${available}`, async ({ page }) => {
     await speechEngine(page, available, kind);
     await page.goto(`/r/${crypto.randomUUID()}`);
-    await page.getByRole("button", { name: "Start speaking", exact: true }).click();
+    await hold(page);
     await say(page, "A partial thought");
     await expect(page.getByTestId("message")).toHaveAttribute("data-status", "live");
     await say(page, "A completed thought", true);
     await expect(page.getByTestId("message")).toHaveCount(1);
     await expect(page.getByTestId("message")).toHaveAttribute("data-status", "final");
     await expect(page.getByTestId("message")).toContainText("A completed thought");
-    await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Start speaking", exact: true })).toBeEnabled();
+    await page.mouse.up();
+    await expect(page.getByRole("button", { name: "Hold to talk", exact: true })).toBeEnabled();
     await expect(page.getByText(/On-device|Download speech pack|browser vendor/)).toHaveCount(0);
     await expect(page.locator("input, textarea, [contenteditable=true], audio, video")).toHaveCount(0);
   });
 }
+
+test("releasing outside the hold button finalizes words and stops the microphone", async ({ page }) => {
+  await speechEngine(page); await page.goto(`/r/${crypto.randomUUID()}`);
+  await hold(page);
+  await expect(page.getByTestId("push-to-talk")).toHaveText("Release to send");
+  await say(page, "This turn ends on release");
+  await expect(page.getByTestId("message")).toHaveAttribute("data-status", "live");
+  await page.mouse.move(2, 2); await page.mouse.up();
+  await expect(page.getByTestId("message")).toHaveAttribute("data-status", "final");
+  await expect(page.getByTestId("push-to-talk")).toHaveText("Hold to talk");
+  expect(await page.evaluate(() => (window as any).__speechStops)).toBe(1);
+});
+
+test("Space and Enter hold to talk without key repeat or click toggling", async ({ page }) => {
+  await speechEngine(page); await page.goto(`/r/${crypto.randomUUID()}`);
+  const button = page.getByTestId("push-to-talk");
+  await expect(button).toBeEnabled(); await button.focus();
+  await page.keyboard.down("Space"); await page.keyboard.down("Space");
+  await say(page, "Keyboard hold"); await page.keyboard.up("Space");
+  await expect(button).toHaveText("Hold to talk");
+  expect(await page.evaluate(() => (window as any).__speechStarts)).toBe(1);
+  await page.keyboard.down("Enter"); await say(page, "Another turn"); await page.keyboard.up("Enter");
+  await expect(page.getByTestId("message")).toHaveCount(2);
+  await expect(button).toHaveText("Hold to talk");
+  await button.click();
+  await expect(button).toHaveText("Hold to talk");
+  expect(await page.evaluate(() => (window as any).__speechStarts)).toBe(3);
+  expect(await page.evaluate(() => (window as any).__speechStops)).toBe(3);
+});
+
+test("releasing during permission/startup prevents a late microphone start", async ({ page }) => {
+  await speechEngine(page, "available", "local", true); await page.goto(`/r/${crypto.randomUUID()}`);
+  await hold(page); await page.mouse.up();
+  await expect(page.getByTestId("push-to-talk")).toHaveText("Hold to talk");
+  await page.evaluate(() => (window as any).__speech.onstart());
+  await say(page, "Must never be sent after release");
+  await expect(page.getByTestId("push-to-talk")).toHaveText("Hold to talk");
+  await expect(page.getByTestId("message")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.evaluate(() => { (window as any).__oldSpeech = (window as any).__speech; });
+  await hold(page);
+  await page.evaluate(() => {
+    (window as any).__oldSpeech.onstart(); // A stale abort must not cancel the next hold.
+    (window as any).__speech.onstart();
+  });
+  await expect(page.getByTestId("push-to-talk")).toHaveText("Release to send");
+  await say(page, "The next hold still works"); await page.mouse.up();
+  await expect(page.getByTestId("message")).toHaveAttribute("data-status", "final");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("losing focus ends a hold and a stopped recognizer cannot restart", async ({ page }) => {
+  await speechEngine(page); await page.goto(`/r/${crypto.randomUUID()}`);
+  await hold(page); await say(page, "Before switching apps");
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await expect(page.getByTestId("message")).toHaveAttribute("data-status", "final");
+  await expect(page.getByTestId("push-to-talk")).toHaveText("Hold to talk");
+  await page.mouse.up();
+  await hold(page);
+  await page.evaluate(() => (window as any).__speech.onend());
+  await expect.poll(() => page.evaluate(() => (window as any).__speechStarts)).toBe(3);
+  await page.evaluate(() => (window as any).__speech.onend());
+  await page.mouse.up();
+  await page.waitForTimeout(500); // Longer than the recognizer's restart timer.
+  expect(await page.evaluate(() => (window as any).__speechStarts)).toBe(3);
+});
+
+test("touch holds end on both finger release and pointer cancellation", async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  await speechEngine(page); await page.goto(`/r/${crypto.randomUUID()}`);
+  const button = page.getByTestId("push-to-talk"); await expect(button).toBeEnabled();
+  const box = (await button.boundingBox())!;
+  const session = await context.newCDPSession(page);
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  for (const [end, text] of [["touchEnd", "Released a touch"], ["touchCancel", "Cancelled a touch"]] as const) {
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+    await expect(button).toHaveText("Release to send");
+    await say(page, text);
+    await session.send("Input.dispatchTouchEvent", { type: end, touchPoints: [] });
+    await expect(button).toHaveText("Hold to talk");
+    await expect(page.getByTestId("message").filter({ hasText: text })).toHaveAttribute("data-status", "final");
+  }
+  await context.close();
+});

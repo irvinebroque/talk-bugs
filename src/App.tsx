@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, Check, Copy, HelpCircle, LoaderCircle, Mic, MicOff, Plus, Square } from "lucide-react";
+import { PushToTalk } from "@/components/push-to-talk";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +23,7 @@ function Help() {
         </DialogHeader>
         <div className="space-y-4 text-sm text-muted-foreground">
           <p>Share the room link to invite people. Up to 24 people can join and speak at the same time.</p>
-          <p>Click Start speaking to turn on your microphone. Words appear as you speak and may change while recognition finishes. Click Stop speaking to turn it off.</p>
+          <p>Hold the microphone button while speaking. Release it to finish your turn. Words appear as you speak. With the button focused, you can also hold Space or Enter.</p>
           <Separator />
           <p>You need a browser with speech recognition to speak. Unsupported browsers can still read messages.</p>
           <p>Anyone with the link can read the room. Text is stored on Cloudflare for up to 24 hours. Messages are not end-to-end encrypted.</p>
@@ -63,8 +64,8 @@ function Room({ roomId }: { roomId: string }) {
 
   const buttonLabel = speech.support === "checking" ? "Checking speech support"
     : speech.support === "unsupported" ? "Speech unavailable"
-    : speaking ? "Stop speaking"
-    : speech.activity === "stopping" ? "Finishing your words" : "Start speaking";
+    : speaking ? "Release to send"
+    : speech.activity === "stopping" ? "Finishing your words" : "Hold to talk";
   const disabled = room.status !== "connected"
     || ["checking", "unsupported"].includes(speech.support)
     || speech.activity === "stopping";
@@ -115,7 +116,7 @@ function Room({ roomId }: { roomId: string }) {
             {messages.length === 0 ? (
               <div className="flex min-h-full flex-col items-center justify-center gap-2 py-8 text-center text-sm">
                 <h2 className="font-medium">No messages yet</h2>
-                <p className="max-w-xs text-muted-foreground">{room.participants.length > 1 ? "Start speaking to send a message." : "Invite someone to join, then start speaking."}</p>
+                <p className="max-w-xs text-muted-foreground">{room.participants.length > 1 ? "Hold to talk to send a message." : "Invite someone to join, then hold to talk."}</p>
               </div>
             ) : (
               <div className="space-y-6" aria-label="Conversation">
@@ -143,13 +144,10 @@ function Room({ roomId }: { roomId: string }) {
 
         <CardFooter className="flex-col items-stretch gap-3 border-t">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Button aria-pressed={speaking} disabled={disabled} onClick={() => {
-              if (speaking) speech.stop();
-              else speech.start();
-            }}>
+            <PushToTalk active={speaking} disabled={disabled} onPress={speech.start} onRelease={speech.stop}>
               {busy ? <LoaderCircle className="motion-safe:animate-spin" /> : speech.support === "unsupported" ? <MicOff /> : speaking ? <Square /> : <Mic />}
               {buttonLabel}
-            </Button>
+            </PushToTalk>
             <span className="text-xs text-muted-foreground">English</span>
           </div>
           <p className="text-sm text-muted-foreground">{subtitle}</p>

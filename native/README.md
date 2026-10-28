@@ -1,6 +1,6 @@
 # talk-bugs for iPhone and Apple Watch
 
-Native SwiftUI clients for the same Cloudflare rooms as the web app. Open the app, invite someone, tap **Speak**, then **Send**. Recording stops after 30 seconds. Everyone reads text; there is no keyboard, dictation text field, or audio playback.
+Native SwiftUI clients for the same Cloudflare rooms as the web app. Open the app, invite someone, hold **Hold to talk** while speaking, then release to send. Recording stops after 30 seconds. Everyone reads text; there is no keyboard, dictation text field, or audio playback.
 
 The native apps send completed messages. Multiple people can record simultaneously; the Durable Object orders messages when their text arrives. The existing browser client still streams partial transcripts.
 
@@ -17,7 +17,7 @@ For hardware, select your Apple development team for the app and both widget ext
 
 Start on the iPhone: its room is passed to the Watch through WatchConnectivity. Invite links open that room in the native app when installed, or the web app otherwise. `talk-bugs://room/<room-uuid>` is also supported. The plus button creates another room. Pending recordings retain the room in which they were recorded.
 
-Add **Speak in talk-bugs** to iPhone Control Center, the Lock Screen controls, or an Action button shortcut. A Watch face **Speak** complication opens recording; the foreground Speak button supports the Watch primary hand gesture. Microphone permission is requested when recording starts. The app's shortcut URL is `https://talk-bugs.roundtrip.workers.dev/talk` (or `talk-bugs://talk`).
+Add **Speak in talk-bugs** to iPhone Control Center, the Lock Screen controls, or an Action button shortcut. The Watch face **Speak** complication and iPhone shortcuts open the conversation without turning on the microphone. Hold the in-app control to record. VoiceOver also exposes explicit Start speaking and Finish speaking accessibility actions. Microphone permission is requested on the first hold; if the permission sheet interrupts the hold, hold again after allowing access. The app's shortcut URL is `https://talk-bugs.roundtrip.workers.dev/talk` (or `talk-bugs://talk`).
 
 ## Audio and delivery
 
@@ -25,7 +25,7 @@ Add **Speak in talk-bugs** to iPhone Control Center, the Lock Screen controls, o
 - Watch records locally and sends its file to the paired iPhone using `WCSession.transferFile`. The iPhone transcribes it, then posts **only text** to Cloudflare. An unavailable iPhone delays sending; the Watch is not an independent transcription device.
 - A durable outbox holds up to 20 recordings. The iPhone deletes audio after transcription and retains text for retry. The Watch keeps its recording until the phone confirms that Cloudflare acknowledged the message. Files are excluded from backups; jobs older than 24 hours are purged on launch/refresh.
 - Retry preserves the message and participant IDs. Final messages cannot be overwritten. A failed message remains visible with Retry; server history is limited to 200 messages and 24 hours, so retries outside that retained window are not an indefinite deduplication guarantee.
-- Native readers poll authenticated HTTPS snapshots every second while active, with ETags and a three-second retry after network errors. Background readers pause. This version does not send APNs notifications or keep the Watch display awake. Recording already started by the user may finish in the background, subject to the OS execution budget.
+- Native readers poll authenticated HTTPS snapshots every second while active, with ETags and a three-second retry after network errors. Background readers pause. This version does not send APNs notifications or keep the Watch display awake. Losing the foreground ends a recording just like releasing the control; finishing transcription and delivery may continue within the OS execution budget.
 - The iPhone attempts to finish received recordings during its background execution allowance. If iOS suspends it, work resumes when the app next runs. WatchConnectivity schedules delivery opportunistically; it does not promise instant transfer while the phone is locked or unavailable.
 
 No speech audio reaches the application backend. The server accepts only small JSON transcript requests, and rejects audio bodies. Apple handles microphone access, local speech assets, and the Watch-to-phone transport. Room links remain bearer invitations, without accounts or end-to-end encryption.
@@ -58,7 +58,7 @@ The fixture says: “Hello from the watch. We can read each other without hearin
 
 Apple explicitly does not support [`transferFile` in Simulator](https://developer.apple.com/documentation/watchconnectivity/wcsession/transferfile(_:metadata:)). Paired simulators can exercise room context synchronization and HTTPS reading, but cannot prove the audio transfer link. This installed iOS simulator advertises dictation locales but supplies no compatible on-device speech formats; its real speech test is skipped with that reason. The same production transcriber has been exercised successfully on macOS against the fixture and the deployed API.
 
-Hardware validation is still needed for microphone capture, Watch file delivery, locked-phone/background execution, speech assets on the target phone, haptics/hand gestures, and Lock Screen/Watch complication launches. Simulator success is not a claim that these hardware paths have passed. This repository does not publish or submit the native apps to the App Store.
+Hardware validation is still needed for microphone capture, Watch file delivery, locked-phone/background execution, speech assets on the target phone, haptics and physical hold gestures, and Lock Screen/Watch complication launches. Simulator success is not a claim that these hardware paths have passed. This repository does not publish or submit the native apps to the App Store.
 
 ### Validation performed on October 27, 2026
 
@@ -67,3 +67,7 @@ Hardware validation is still needed for microphone capture, Watch file delivery,
 - The production transcription implementation converted the audio fixture locally on macOS, posted the text to the deployed Worker, retried without a duplicate, and read it through a second Swift client. The resulting text was verified in Chrome and on both native simulator screens.
 - The three-client Swift integration test passed against the deployed Worker, including concurrent posts, room isolation, and ETag responses. The hosted Apple association file returned valid JSON with the app's team/bundle ID.
 - Paired simulators synchronized the selected room via WatchConnectivity. Audio file transfer and hardware capture remain unvalidated for the reasons above.
+
+### Push-to-talk validation
+
+The web interaction is covered with mouse, touch, and Space/Enter holds; release outside the control; cancellation; focus loss; key repeat; and a delayed speech startup after release. Native UI tests cover hold-to-send, quick taps, release outside the control, persistence, and shortcuts that leave the microphone off. A native recorder test verifies that releasing during a pending permission request prevents a later start.
