@@ -21,6 +21,38 @@ final class TalkBugsUITests: XCTestCase {
         app.terminate(); app.launch()
         checkHistory(app, text: "A spoken message from the iPhone simulator.")
     }
+    @MainActor func testEncryptedRoomSurvivesRelaunchWithoutLeakingText() async throws {
+        let room = UUID().uuidString.lowercased(), key = String(repeating: "A", count: 43)
+        let text = "Encrypted words from the iPhone simulator."
+        let app = XCUIApplication()
+        app.launchEnvironment["TALK_BUGS_TEST_ROOM"] = room
+        app.launchEnvironment["TALK_BUGS_TEST_KEY"] = key
+        app.launchEnvironment["TALK_BUGS_TEST_TRANSCRIPT"] = text
+        app.launchEnvironment["TALK_BUGS_TEST_SERVER"] = "http://127.0.0.1:5173"
+        app.launch()
+        XCTAssertTrue(app.buttons["speak"].waitForExistence(timeout: 15))
+        app.buttons["speak"].press(forDuration: 0.6)
+        checkHistory(app, text: text)
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:5173/api/encrypted-rooms/\(room)/snapshot")!)
+        request.setValue("Bearer \(UUID().uuidString.lowercased())", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        XCTAssertFalse(String(data: data, encoding: .utf8)!.contains(text))
+        XCTAssertFalse(String(data: data, encoding: .utf8)!.contains(key))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
+        XCTAssertEqual(messages.count, 1)
+        XCTAssertEqual(messages[0]["text"] as? String, "")
+        XCTAssertNotNil(messages[0]["sealed"])
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "TALK_BUGS_TEST_ROOM")
+        app.launchEnvironment.removeValue(forKey: "TALK_BUGS_TEST_KEY")
+        app.launch()
+        checkHistory(app, text: text)
+        app.open(URL(string: "talk-bugs://encrypted-room/\(room)#key=\(key)")!)
+        checkHistory(app, text: text)
+    }
+
     @MainActor func testNewRoomAndShortcutRequireAHold() throws {
         let app = XCUIApplication()
         app.launchEnvironment["TALK_BUGS_TEST_ROOM"] = UUID().uuidString

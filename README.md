@@ -60,13 +60,13 @@ flowchart TD
 
     Watch -->|Audio to your paired iPhone| Phone
 
-    subgraph Cloudflare[Cloudflare — text only]
-        Room[One Durable Object per room<br/>Stores text in SQLite]
+    subgraph Cloudflare[Cloudflare — encrypted text]
+        Room[One Durable Object per room<br/>Stores encrypted text in SQLite]
     end
 
-    Browser -->|Text as you speak| Room
-    Phone -->|Text after you release| Room
-    Room --> Readers[Everyone reads the words<br/>on web, iPhone, or Watch]
+    Browser -->|Encrypt text as you speak| Room
+    Phone -->|Encrypt text after you release| Room
+    Room --> Readers[Everyone decrypts and reads<br/>on web, iPhone, or Watch]
 ```
 
 A Durable Object is the room's coordinator: it saves changes and shares them with everyone. Cloudflare Workers also serves the web app. There is no other application backend.
@@ -78,9 +78,20 @@ A Durable Object is the room's coordinator: it saves changes and shares them wit
 | Receives words | Live over WebSocket | Checks every second while open | Checks every second while open |
 | Hold length | Up to 4,000 characters | Up to 30 seconds | Up to 30 seconds |
 
-**Only text goes to Cloudflare.** Browser recognition uses an installed local English speech pack when available; otherwise, the browser may send audio to its vendor. The native apps transcribe on the iPhone, with no cloud fallback. Watch delivery can wait if the phone is unavailable or asleep.
+**New rooms encrypt text before it reaches Cloudflare.** Browser recognition uses an installed local English speech pack when available; otherwise, the browser may send audio to its vendor. The native apps transcribe on the iPhone, with no cloud fallback. Watch delivery can wait if the phone is unavailable or asleep.
 
 Speech recognition is set to US English. Browsers without speech recognition can still read and invite people. Speaking requires microphone permission and HTTPS or localhost.
+
+## Private rooms, one link
+
+```text
+Invite link = room address + secret key
+              /e/room-id    #key=…
+```
+
+New rooms are end-to-end encrypted. Share the full link: the part after `#` unlocks the words and stays out of server requests. Anyone with that link can read the room. Older `/r/` links keep working without encryption; start a new room to use it.
+
+The key is shared by everyone in the room. Leaving does not revoke access, and a leaked key can unlock saved encrypted messages. Browser transcription may still use its provider's service. See [how encryption works](docs/encryption.md).
 
 ## How live corrections work
 
@@ -144,10 +155,10 @@ No application API keys or secrets are needed. [wrangler.jsonc](wrangler.jsonc) 
 
 | | Current behavior |
 | --- | --- |
-| Room access | Anyone with the link can join and read. No accounts or end-to-end encryption. |
+| Room access | Anyone with the full invite can read. New rooms use end-to-end encryption; no accounts. |
 | Room size | Up to 24 connected people. |
 | Message size | Up to 4,000 characters per turn. |
-| History | Latest 200 turns; stored text expires after 24 hours. |
+| History | Latest 200 turns; the app removes messages after 24 hours. |
 | Web reloads | Saved words survive. Unsent words in page memory do not. |
 | Native retries | Up to 20 pending jobs. Jobs older than 24 hours are removed when the app launches or refreshes. |
 | Background reading | Native apps pause reading. No push notifications yet. |

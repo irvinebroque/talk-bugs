@@ -33,7 +33,7 @@ struct WatchView: View {
                             Button("\(model.pending.count) waiting") { pending = true }.font(.caption2)
                         }
                     }.frame(height: 20)
-                    if let error = model.error { Text(error).font(.caption2).foregroundStyle(.red) }
+                    if let error = model.error ?? model.room.error { Text(error).font(.caption2).foregroundStyle(.red) }
                     PushToTalkButton(recording: model.recorder.isRecording, begin: model.beginRecording, end: model.endRecording)
                         .tint(.white).foregroundStyle(.black).disabled(!model.paired)
                 }.padding(.top, 4).background(.background)

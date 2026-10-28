@@ -35,7 +35,7 @@ import WatchKit
     }
     private func apply(_ context: [String: Any]) {
         if let raw = context["room"] as? String, let id = UUID(uuidString: raw), recordingJob == nil {
-            paired = true; UserDefaults.standard.set(true, forKey: "pairedRoom"); room.join(id, session: (context["session"] as? String).flatMap(UUID.init(uuidString:)))
+            paired = true; UserDefaults.standard.set(true, forKey: "pairedRoom"); room.join(id, key: context["roomKey"] as? String, encrypted: context["encrypted"] as? Bool ?? false, session: (context["session"] as? String).flatMap(UUID.init(uuidString:)))
         }
         if let receipts = context["receipts"] as? [String: String] {
             for var job in store.jobs() {
@@ -52,8 +52,9 @@ import WatchKit
     func beginRecording() {
         guard recordingJob == nil, !recorder.isStarting, !recorder.isRecording else { return }
         guard paired else { error = "Open talk-bugs on your iPhone first."; return }
+        guard !room.encrypted || room.roomKey != nil else { error = RoomCryptoError.missingKey.localizedDescription; return }
         guard pending.count < 20 else { error = VoiceError.queueFull.localizedDescription; return }
-        let job = VoiceJob(room: room.room, session: room.session)
+        let job = VoiceJob(room: room.room, session: room.session, encrypted: room.encrypted, keyID: room.roomKey.map(RoomCrypto.keyID))
         recordingJob = job; endingRecording = false; error = nil
         recordingTask = Task { [weak self, job] in
             guard let self else { return }

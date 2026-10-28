@@ -8,9 +8,10 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useRoom } from "@/hooks/use-room";
 import { useSpeech } from "@/hooks/use-speech";
+import { validKey } from "@/lib/encryption";
 import { UUID } from "../shared/protocol";
 
-function Help() {
+function Help({ encrypted }: { encrypted: boolean }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -27,15 +28,15 @@ function Help() {
           <p>Each person has their own place. Their latest turn stays visible, with the previous turn below it. Open History to see the full conversation, including your words.</p>
           <Separator />
           <p>You need a browser with speech recognition to speak. Unsupported browsers can still read messages.</p>
-          <p>Anyone with the link can read the room. Text is stored on Cloudflare for up to 24 hours. Messages are not end-to-end encrypted.</p>
+          <p>Anyone with the full invite link can read the room. {encrypted ? "Messages are end-to-end encrypted. Room history lasts up to 24 hours. Browser speech recognition may use its provider’s service." : "This older room is not encrypted. Start a new room to use encryption. Text is stored for up to 24 hours."}</p>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function Room({ roomId }: { roomId: string }) {
-  const room = useRoom(roomId);
+function Room({ roomId, secret }: { roomId: string; secret?: string }) {
+  const room = useRoom(roomId, secret);
   const speech = useSpeech(room.publish, room.status === "connected");
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
@@ -64,10 +65,6 @@ function Room({ roomId }: { roomId: string }) {
     || speech.activity === "stopping";
   const busy = speech.support === "checking"
     || speech.activity === "starting" || speech.activity === "stopping";
-  const subtitle = room.status !== "connected" ? "Waiting for the room to connect."
-    : speech.support === "unsupported" ? "This browser doesn’t support speech recognition. Open this link in a supported browser to speak."
-    : speaking ? "Your microphone is on. Your words are shared as text."
-    : "Your microphone is off.";
 
   return (
     <main className="mx-auto flex h-dvh max-w-3xl flex-col p-3 sm:p-6">
@@ -81,7 +78,7 @@ function Room({ roomId }: { roomId: string }) {
             <Button asChild variant="outline" size="icon"><a href="/" aria-label="New room" title="New room"><Plus /></a></Button>
             <Button variant="outline" onClick={() => void invite()}>{copied ? <Check /> : <Copy />}{copied ? "Copied" : "Invite"}</Button>
             <RoomHistory messages={room.messages} selfID={room.self?.id} />
-            <Help />
+            <Help encrypted={!!secret} />
           </CardAction>
         </CardHeader>
 
@@ -98,9 +95,8 @@ function Room({ roomId }: { roomId: string }) {
             </PushToTalk>
             <span className="text-xs text-muted-foreground">English</span>
           </div>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
+          {speech.support === "unsupported" && <p className="text-sm text-muted-foreground">This browser doesn’t support speech recognition. Open this link in a supported browser to speak.</p>}
           {(speech.error || room.error) && <p role="alert" className="text-sm text-destructive">{speech.error || room.error}</p>}
-          <span role="status" className="min-h-4 text-xs text-muted-foreground">{room.pending ? `${room.pending} turn${room.pending > 1 ? "s" : ""} syncing…` : ""}</span>
         </CardFooter>
       </Card>
     </main>
@@ -108,12 +104,23 @@ function Room({ roomId }: { roomId: string }) {
 }
 
 export default function App() {
-  const match = location.pathname.match(/^\/r\/([^/]+)\/?$/);
-  if (match && UUID.test(match[1])) return <Room roomId={match[1]} />;
+  const [address, setAddress] = useState(() => new URL(location.href));
+  useEffect(() => {
+    const changed = () => setAddress(new URL(location.href));
+    window.addEventListener("hashchange", changed);
+    window.addEventListener("popstate", changed);
+    return () => { window.removeEventListener("hashchange", changed); window.removeEventListener("popstate", changed); };
+  }, []);
+  const match = address.pathname.match(/^\/(r|e)\/([^/]+)\/?$/);
+  const secret = address.hash.startsWith("#key=") ? address.hash.slice(5) : "";
+  if (match && UUID.test(match[2])) {
+    if (match[1] === "r" && !address.hash) return <Room key={address.pathname} roomId={match[2].toLowerCase()} />;
+    if (match[1] === "e" && validKey(secret)) return <Room key={address.pathname + address.hash} roomId={match[2].toLowerCase()} secret={secret} />;
+  }
   return (
     <main className="mx-auto max-w-md p-6">
       <Card>
-        <CardHeader><CardTitle><h1>Invalid room link</h1></CardTitle><CardDescription>Ask for the full invite link, or start a new room.</CardDescription></CardHeader>
+        <CardHeader><CardTitle><h1>Invalid room link</h1></CardTitle><CardDescription>Ask for the full invite link, including the part after #, or start a new room.</CardDescription></CardHeader>
         <CardFooter><Button asChild><a href="/">New room</a></Button></CardFooter>
       </Card>
     </main>

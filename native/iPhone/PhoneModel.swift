@@ -21,8 +21,9 @@ import UIKit
     func reload() { store.purge(); pending = store.jobs() }
     func beginRecording() {
         guard recordingJob == nil, !recorder.isStarting, !recorder.isRecording else { return }
+        guard !room.encrypted || room.roomKey != nil else { error = RoomCryptoError.missingKey.localizedDescription; return }
         guard pending.count < 20 else { error = VoiceError.queueFull.localizedDescription; return }
-        var job = VoiceJob(room: room.room, session: room.session)
+        var job = VoiceJob(room: room.room, session: room.session, encrypted: room.encrypted, keyID: room.roomKey.map(RoomCrypto.keyID))
         #if DEBUG && targetEnvironment(simulator)
         job.text = ProcessInfo.processInfo.environment["TALK_BUGS_TEST_TRANSCRIPT"]
         #endif
@@ -87,6 +88,9 @@ import UIKit
                 self.processing = true
                 if ["sent", "discarded"].contains(self.receipts[job.id.uuidString]) { self.store.remove(job.id); continue }
                 do {
+                    // An older Watch app may omit the encryption flag. Never send
+                    // that recording in plaintext if this is a known encrypted room.
+                    if job.encrypted != true && RoomKeys.load(job.room) != nil { throw VoiceError.invalidRecording }
                     if job.text == nil {
                         job.text = try await self.transcriber.transcribe(self.store.audio(job.id))
                         if self.receipts[job.id.uuidString] == "discarded" { continue }
@@ -95,7 +99,7 @@ import UIKit
                         try? FileManager.default.removeItem(at: self.store.audio(job.id))
                     }
                     try Task.checkCancellation()
-                    try await RoomAPI(baseURL: self.room.baseURL, room: job.room, session: job.session).send(Transcript(id: job.id, text: job.text!))
+                    try await RoomAPI(baseURL: self.room.baseURL, room: job.room, session: job.session, key: job.encrypted == true ? RoomKeys.load(job.room, id: job.keyID) : nil, encrypted: job.encrypted == true).send(Transcript(id: job.id, text: job.text!))
                     self.receipt(job.id, "sent"); self.store.remove(job.id)
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
                 } catch is CancellationError { return }

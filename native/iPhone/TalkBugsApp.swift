@@ -10,7 +10,8 @@ import TalkBugsCore
         _model = State(initialValue: model); bridge = PhoneBridge(model: model)
     }
     private func open(_ url: URL) {
-        if let room = RoomLink.parse(url) { model.cancelRecording(); model.room.join(room) }
+        if let invite = RoomLink.invitation(url) { model.cancelRecording(); model.room.join(invite.room, key: invite.key) }
+        else if url.path.hasPrefix("/e/") || url.host == "encrypted-room" { model.error = RoomCryptoError.missingKey.localizedDescription }
     }
     var body: some Scene {
         WindowGroup {

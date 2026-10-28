@@ -48,14 +48,14 @@ struct PhoneView: View {
                             }
                         }
                     }
-                    if let error = model.error { Text(error).font(.caption).foregroundStyle(.red).accessibilityIdentifier("recording-error") }
+                    if let error = model.error ?? model.room.error { Text(error).font(.caption).foregroundStyle(.red).accessibilityIdentifier("recording-error") }
                 }.padding()
             }
             .navigationTitle("talk-bugs").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("New room", systemImage: "plus") { newRoom = true }.labelStyle(.iconOnly) }
                 ToolbarItem(placement: .topBarTrailing) { Button("History", systemImage: "clock.arrow.circlepath") { history = true }.labelStyle(.iconOnly) }
-                ToolbarItem(placement: .topBarTrailing) { ShareLink(item: RoomLink.url(model.room.room)) { Label("Invite", systemImage: "square.and.arrow.up") } }
+                ToolbarItem(placement: .topBarTrailing) { ShareLink(item: model.room.inviteURL) { Label("Invite", systemImage: "square.and.arrow.up") } }
             }
             .sheet(isPresented: $history) {
                 NavigationStack {
@@ -64,7 +64,7 @@ struct PhoneView: View {
                 }
             }
             .confirmationDialog("Open a new room?", isPresented: $newRoom) {
-                Button("New room") { model.cancelRecording(); model.room.join(UUID()) }.accessibilityIdentifier("confirm-new-room")
+                Button("New room") { model.cancelRecording(); model.room.newRoom() }.accessibilityIdentifier("confirm-new-room")
             }
         }
     }

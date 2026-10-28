@@ -2,8 +2,8 @@ import { DurableObject } from "cloudflare:workers";
 import { MAX_HISTORY, MAX_MEMBERS, RETENTION_MS, UUID, parseTranscript,
   type Message, type Participant, type ServerEvent, type Transcript } from "../shared/protocol";
 
-type Attachment = { speaker: Participant; windowStart: number; count: number; closed?: boolean };
-type Row = { id: string; speaker: string; utterance: string; revision: number; text: string;
+type Attachment = { speaker: Participant; windowStart: number; count: number; closed?: boolean; encrypted?: boolean };
+type Row = { id: string; speaker: string; utterance: string; revision: number; text: string; sealed: string | null;
   status: Message["status"]; ordinal: number; started: number; updated: number };
 const STALE_MS = 45_000;
 
@@ -22,6 +22,9 @@ export class ChatRoom extends DurableObject<Env> {
       CREATE TABLE IF NOT EXISTS room_version (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL);
       INSERT OR IGNORE INTO room_version VALUES (1, 0);
     `);
+    if (!ctx.storage.sql.exec<{ name: string }>("PRAGMA table_info(messages)").toArray().some(column => column.name === "sealed")) {
+      ctx.storage.sql.exec("ALTER TABLE messages ADD COLUMN sealed TEXT");
+    }
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
   }
 
@@ -39,7 +42,7 @@ export class ChatRoom extends DurableObject<Env> {
 
   private message(row: Row): Message {
     return { id: row.id, utteranceId: row.utterance, speaker: this.participant(row.speaker),
-      revision: row.revision, text: row.text, status: row.status,
+      revision: row.revision, text: row.text, ...(row.sealed ? { sealed: JSON.parse(row.sealed) } : {}), status: row.status,
       order: row.ordinal, startedAt: row.started, updatedAt: row.updated };
   }
 
@@ -108,7 +111,7 @@ export class ChatRoom extends DurableObject<Env> {
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
     let update: Transcript | null;
-    try { update = parseTranscript(JSON.parse(new TextDecoder().decode(bytes))); } catch { update = null; }
+    try { update = parseTranscript(JSON.parse(new TextDecoder().decode(bytes)), request.headers.get("x-encrypted-room") === "1"); } catch { update = null; }
     if (!update) return new Response("Invalid transcript", { status: 400, headers });
     const rate = this.ctx.storage.sql.exec<{ window_start: number; count: number }>("SELECT window_start, count FROM http_members WHERE id = ?", id).toArray()[0];
     if (!rate) return new Response("Session expired; reconnect", { status: 409, headers });
@@ -136,7 +139,7 @@ export class ChatRoom extends DurableObject<Env> {
     const pair = new WebSocketPair();
     const speaker = this.participant(id);
     this.ctx.acceptWebSocket(pair[1]);
-    pair[1].serializeAttachment({ speaker, windowStart: Date.now(), count: 0 } satisfies Attachment);
+    pair[1].serializeAttachment({ speaker, windowStart: Date.now(), count: 0, encrypted: request.headers.get("x-encrypted-room") === "1" } satisfies Attachment);
     this.ctx.storage.sql.exec("DELETE FROM messages WHERE updated < ?", Date.now() - RETENTION_MS);
     const messages = this.ctx.storage.sql.exec<Row>("SELECT * FROM messages ORDER BY ordinal DESC LIMIT ?", MAX_HISTORY).toArray().reverse().map(row => this.message(row));
     this.send(pair[1], { type: "welcome", self: speaker, participants: this.presence(), messages });
@@ -157,7 +160,7 @@ export class ChatRoom extends DurableObject<Env> {
     ws.serializeAttachment(a);
     let payload: unknown;
     try { payload = JSON.parse(raw); } catch { this.send(ws, { type: "error", message: "Invalid message." }); return; }
-    const update = parseTranscript(payload);
+    const update = parseTranscript(payload, a.encrypted === true);
     if (!update) { this.send(ws, { type: "error", message: "Invalid transcript." }); return; }
     try {
       const result = this.acceptTranscript(a.speaker.id, update);
@@ -174,7 +177,7 @@ export class ChatRoom extends DurableObject<Env> {
     if (old && (old.status === "final" || update.revision <= old.revision)) {
       return { revision: old.status === "final" ? update.revision : old.revision, message: this.message(old) };
     }
-    if (!update.text && !old) {
+    if (!update.text && !update.sealed && !old) {
       return { revision: update.revision };
     }
     if (!old && !update.final) {
@@ -183,10 +186,10 @@ export class ChatRoom extends DurableObject<Env> {
       if (count >= 4) throw new Error("Too many unfinished phrases");
     }
     // A single SQLite upsert preserves the first-seen order through every revision.
-    this.ctx.storage.sql.exec(`INSERT INTO messages (id, speaker, utterance, revision, text, status, started, updated)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET revision=excluded.revision, text=excluded.text, status=excluded.status, updated=excluded.updated`,
-      id, speakerId, update.utteranceId, update.revision, update.text, update.final ? "final" : "live", now, now);
+    this.ctx.storage.sql.exec(`INSERT INTO messages (id, speaker, utterance, revision, text, status, started, updated, sealed)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET revision=excluded.revision, text=excluded.text, sealed=excluded.sealed, status=excluded.status, updated=excluded.updated`,
+      id, speakerId, update.utteranceId, update.revision, update.text, update.final ? "final" : "live", now, now, update.sealed ? JSON.stringify(update.sealed) : null);
     this.ctx.storage.sql.exec(`DELETE FROM messages WHERE ordinal NOT IN
       (SELECT ordinal FROM messages ORDER BY ordinal DESC LIMIT ?) AND status != 'live'`, MAX_HISTORY);
     const row = this.ctx.storage.sql.exec<Row>("SELECT * FROM messages WHERE id = ?", id).one();
@@ -204,7 +207,12 @@ export class ChatRoom extends DurableObject<Env> {
     this.broadcast({ type: "presence", participants: this.presence() });
   }
 
-  webSocketClose(ws: WebSocket): void { this.disconnect(ws); }
+  webSocketClose(ws: WebSocket, code: number, reason: string): void {
+    this.disconnect(ws);
+    // Explicitly finish the handshake so browsers can reconnect immediately.
+    // Some deployed runtimes leave the client in CLOSING without this reply.
+    try { ws.close([1005, 1006, 1015].includes(code) ? 1000 : code, reason); } catch { /* Already closed. */ }
+  }
   webSocketError(ws: WebSocket): void { this.disconnect(ws); }
 
   private async scheduleCleanup(): Promise<void> {
@@ -242,14 +250,16 @@ export default {
     if (url.pathname === "/api/rooms" && request.method === "POST") {
       return Response.json({ id: crypto.randomUUID() }, { headers: { "Cache-Control": "no-store" } });
     }
-    const match = url.pathname.match(/^\/api\/rooms\/([^/]+)\/(socket|snapshot|transcript|leave)$/);
+    const match = url.pathname.match(/^\/api\/(rooms|encrypted-rooms)\/([^/]+)\/(socket|snapshot|transcript|leave)$/);
     const token = native ? nativeToken : url.searchParams.get("session");
-    if (!match || !UUID.test(match[1]) || !token || !UUID.test(token)) return new Response("Invalid room", { status: 400 });
-    if (match[2] === "socket" && request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("WebSocket required", { status: 426 });
+    if (!match || !UUID.test(match[2]) || !token || !UUID.test(token)) return new Response("Invalid room", { status: 400 });
+    if (match[3] === "socket" && request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("WebSocket required", { status: 426 });
     const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token.toLowerCase()));
     const speakerId = Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("");
     const forwarded = new Request(request);
     forwarded.headers.set("x-speaker-id", speakerId);
-    return env.ROOMS.getByName(match[1].toLowerCase()).fetch(forwarded);
+    const encrypted = match[1] === "encrypted-rooms";
+    forwarded.headers.set("x-encrypted-room", encrypted ? "1" : "0");
+    return env.ROOMS.getByName(`${encrypted ? "e:" : ""}${match[2].toLowerCase()}`).fetch(forwarded);
   },
 } satisfies ExportedHandler<Env>;

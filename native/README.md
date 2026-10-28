@@ -21,16 +21,24 @@ Start on the iPhone: its room and participant identity are passed to the Watch t
 
 Add **Speak in talk-bugs** to iPhone Control Center, the Lock Screen controls, or an Action button shortcut. The Watch face **Speak** complication and iPhone shortcuts open the conversation without turning on the microphone. Hold the in-app control to record. VoiceOver also exposes explicit Start speaking and Finish speaking accessibility actions. Microphone permission is requested on the first hold; if the permission sheet interrupts the hold, hold again after allowing access. The app's shortcut URL is `https://talk-bugs.roundtrip.workers.dev/talk` (or `talk-bugs://talk`).
 
+## Encrypted invitations
+
+New rooms use `/e/<room-id>#key=<secret>`. Share the complete link. The iPhone saves its key in Keychain and passes it to the paired Watch through WatchConnectivity. Both devices decrypt incoming words locally with CryptoKit. Keys never go to Cloudflare.
+
+Queued recordings remember their original room and encryption mode. Their keys stay in Keychain even after you switch rooms. Missing keys stop delivery instead of falling back to plaintext. Losing every copy of the full invite and its saved key loses access to that room.
+
+Encrypted universal links and `talk-bugs://encrypted-room/<room-id>#key=<secret>` open the room. Older `talk-bugs://room/<room-id>` and `/r/` links still open their original plaintext rooms.
+
 ## Audio and delivery
 
 - iPhone records 16 kHz mono PCM locally. `SpeechAnalyzer` with `SpeechTranscriber` performs on-device recognition, with `DictationTranscriber` for devices without the newer transcriber. English (`en-US`) speech assets are downloaded from Apple when needed. There is no cloud recognition fallback.
-- Watch records locally and sends its file to the paired iPhone using `WCSession.transferFile`. The iPhone transcribes it, then posts **only text** to Cloudflare. An unavailable iPhone delays sending; the Watch is not an independent transcription device.
+- Watch records locally and sends its file to the paired iPhone using `WCSession.transferFile`. The iPhone transcribes it, then encrypts the text for new rooms and posts it to Cloudflare. An unavailable iPhone delays sending; the Watch is not an independent transcription device.
 - A durable outbox holds up to 20 recordings. The iPhone deletes audio after transcription and retains text for retry. The Watch keeps its recording until the phone confirms that Cloudflare acknowledged the message. Files are excluded from backups; jobs older than 24 hours are purged on launch/refresh.
 - Retry preserves the message and participant IDs. Final messages cannot be overwritten. A failed message remains visible with Retry; server history is limited to 200 messages and 24 hours, so retries outside that retained window are not an indefinite deduplication guarantee.
 - Native readers poll authenticated HTTPS snapshots every second while active, with ETags and a three-second retry after network errors. Background readers pause; the shared phone/Watch presence expires through its lease when neither device is polling. This version does not send APNs notifications or keep the Watch display awake. Losing the foreground ends a recording just like releasing the control; finishing transcription and delivery may continue within the OS execution budget.
 - The iPhone attempts to finish received recordings during its background execution allowance. If iOS suspends it, work resumes when the app next runs. WatchConnectivity schedules delivery opportunistically; it does not promise instant transfer while the phone is locked or unavailable.
 
-No speech audio reaches the application backend. The server accepts only small JSON transcript requests, and rejects audio bodies. Apple handles microphone access, local speech assets, and the Watch-to-phone transport. Room links remain bearer invitations, without accounts or end-to-end encryption.
+No speech audio reaches the application backend. The server accepts only small JSON transcript requests, and rejects audio bodies. Apple handles microphone access, local speech assets, and the Watch-to-phone transport. New rooms use end-to-end encryption. Anyone with the complete invitation can read them; older `/r/` rooms remain plaintext. See the [encryption design](../docs/encryption.md).
 
 ## Validation
 

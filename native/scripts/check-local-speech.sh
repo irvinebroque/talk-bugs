@@ -14,18 +14,24 @@ import Foundation
         print("Local speech passed:", text)
         if let server = ProcessInfo.processInfo.environment["TALK_BUGS_TEST_SERVER"], let base = URL(string: server) {
             let room = ProcessInfo.processInfo.environment["TALK_BUGS_TEST_ROOM"].flatMap(UUID.init(uuidString:)) ?? UUID()
-            let sender = RoomAPI(baseURL: base, room: room, session: UUID())
-            let reader = RoomAPI(baseURL: base, room: room, session: UUID())
+            let key = RoomCrypto.generateKey()
+            let sender = RoomAPI(baseURL: base, room: room, session: UUID(), key: key)
+            let reader = RoomAPI(baseURL: base, room: room, session: UUID(), key: key)
             let message = Transcript(id: UUID(), text: text)
             try await sender.send(message)
             try await sender.send(message)
             let (snapshot, _) = try await reader.snapshot()
             guard snapshot?.messages.filter({ $0.utteranceId == message.utteranceId }).count == 1, snapshot?.messages.contains(where: { $0.text == text }) == true else { fatalError("Text delivery or idempotency failed") }
-            print("Audio → local speech → HTTPS → room → second client passed. Room:", room.uuidString.lowercased())
+            var request = URLRequest(url: base.appending(path: "api/encrypted-rooms/\(room.uuidString.lowercased())/snapshot"))
+            request.setValue("Bearer \(reader.session.uuidString.lowercased())", forHTTPHeaderField: "Authorization")
+            let (wire, response) = try await URLSession.shared.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  let raw = String(data: wire, encoding: .utf8), !raw.contains(text), !raw.contains(key), raw.contains("ciphertext") else { fatalError("Server must only return encrypted text") }
+            print("Audio → local speech → encryption → HTTPS → decryption → second client passed. Room:", room.uuidString.lowercased())
             await sender.leave(); await reader.leave()
         }
     }
 }
 SWIFT
-swiftc -parse-as-library Core/Sources/TalkBugsCore/Models.swift Core/Sources/TalkBugsCore/VoiceStore.swift Core/Sources/TalkBugsCore/RoomAPI.swift "$check_dir/LocalTranscriber.swift" "$check_dir/Main.swift" -o "$check_dir/check"
+swiftc -parse-as-library Core/Sources/TalkBugsCore/RoomCrypto.swift Core/Sources/TalkBugsCore/Models.swift Core/Sources/TalkBugsCore/VoiceStore.swift Core/Sources/TalkBugsCore/RoomAPI.swift "$check_dir/LocalTranscriber.swift" "$check_dir/Main.swift" -o "$check_dir/check"
 "$check_dir/check" UnitTests/Fixtures/voice.wav

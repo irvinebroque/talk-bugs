@@ -1,0 +1,26 @@
+{
+  "key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "room": "00000000-0000-4000-8000-000000000001",
+  "session": "00000000-0000-4000-8000-000000000002",
+  "text": "Meet me outside. 👋 Café",
+  "message": {
+    "id": "e79acd97ac88086665d85a762f43d533a45195b6bac5961a993e6ed362471439/00000000-0000-4000-8000-000000000003",
+    "utteranceId": "00000000-0000-4000-8000-000000000003",
+    "speaker": {
+      "id": "e79acd97ac88086665d85a762f43d533a45195b6bac5961a993e6ed362471439",
+      "name": "Participant 1",
+      "color": 0
+    },
+    "revision": 1,
+    "text": "",
+    "status": "final",
+    "order": 1,
+    "startedAt": 1,
+    "updatedAt": 1,
+    "sealed": {
+      "v": 1,
+      "iv": "AAECAwQFBgcICQoL",
+      "ciphertext": "Cmezb-WIpzviNOP42I0dQ6MmGKV7WxwdXqRMAmVzunvTw5GecprjyXxOZg"
+    }
+  }
+}

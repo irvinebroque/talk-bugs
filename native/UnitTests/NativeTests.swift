@@ -45,6 +45,59 @@ final class NativeTests: XCTestCase {
         XCTAssertEqual(RoomModel().session, paired)
         Identity.adopt(original)
     }
+    @MainActor func testRoomKeysSurviveRelaunchAndKeepOlderKeysForPendingRecordings() throws {
+        let room = UUID(), key = RoomCrypto.generateKey()
+        try RoomKeys.save(key, room: room)
+        XCTAssertEqual(RoomKeys.load(room), key)
+        try RoomKeys.save(RoomCrypto.generateKey(), room: room)
+        XCTAssertEqual(RoomKeys.load(room, id: RoomCrypto.keyID(key)), key)
+        let model = RoomModel()
+        model.join(room, key: key)
+        let restored = RoomModel()
+        XCTAssertEqual(restored.room, room)
+        XCTAssertEqual(restored.roomKey, key)
+        XCTAssertTrue(restored.encrypted)
+        model.join(room)
+        XCTAssertTrue(model.encrypted)
+        XCTAssertEqual(model.roomKey, key)
+        XCTAssertNotNil(model.error)
+    }
+    @MainActor func testQueuedEncryptedWatchJobUsesItsOriginalRoomAndKey() async throws {
+        let model = PhoneModel()
+        model.room.baseURL = URL(string: "http://127.0.0.1:5173")!
+        let originalRoom = UUID(), key = RoomCrypto.generateKey()
+        try RoomKeys.save(key, room: originalRoom)
+        var job = VoiceJob(room: originalRoom, session: UUID(), encrypted: true, keyID: RoomCrypto.keyID(key))
+        job.text = "A queued encrypted Watch transcript."
+        try model.store.save(job)
+        model.room.newRoom()
+        // Even a later invite with another key must not change this job's key.
+        try RoomKeys.save(RoomCrypto.generateKey(), room: originalRoom)
+        model.process()
+        for _ in 0..<200 {
+            if model.receipts[job.id.uuidString] != nil { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(model.receipts[job.id.uuidString], "sent")
+        let api = RoomAPI(baseURL: model.room.baseURL, room: originalRoom, session: UUID(), key: key)
+        let (snapshot, _) = try await api.snapshot()
+        XCTAssertEqual(snapshot?.messages.first?.text, job.text)
+        let (current, _) = try await model.room.api.snapshot()
+        XCTAssertTrue(current?.messages.isEmpty == true)
+        // A recording from an older Watch must not lose encryption on retry.
+        var legacyJob = VoiceJob(room: originalRoom, session: UUID())
+        legacyJob.text = "Never upload these words in plaintext."
+        try model.store.save(legacyJob); model.process()
+        for _ in 0..<200 {
+            if model.receipts[legacyJob.id.uuidString] != nil { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertNotEqual(model.receipts[legacyJob.id.uuidString], "sent")
+        XCTAssertNotNil(model.store.jobs().first { $0.id == legacyJob.id }?.error)
+        let (legacy, _) = try await RoomAPI(baseURL: model.room.baseURL, room: originalRoom, session: UUID()).snapshot()
+        XCTAssertTrue(legacy?.messages.isEmpty == true)
+        model.discard(legacyJob.id)
+    }
     @MainActor func testReleaseWhilePermissionIsPendingPreventsRecording() async throws {
         var permission: CheckedContinuation<Bool, Never>?
         let recorder = VoiceRecorder(requestPermission: {

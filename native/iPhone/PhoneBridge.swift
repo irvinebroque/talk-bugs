@@ -11,9 +11,15 @@ import WatchConnectivity
         model.room.onRoomChange = { [weak self] in self?.sync() }
         if WCSession.isSupported() { WCSession.default.delegate = self; WCSession.default.activate() }
     }
+    private var context: [String: Any] {
+        var result: [String: Any] = ["room": model.room.room.uuidString, "session": model.room.session.uuidString,
+                                   "encrypted": model.room.encrypted, "receipts": model.receipts]
+        if let key = model.room.roomKey { result["roomKey"] = key }
+        return result
+    }
     func sync() {
         guard WCSession.default.activationState == .activated, WCSession.default.isWatchAppInstalled else { return }
-        try? WCSession.default.updateApplicationContext(["room": model.room.room.uuidString, "session": model.room.session.uuidString, "receipts": model.receipts])
+        try? WCSession.default.updateApplicationContext(context)
     }
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {
         Task { @MainActor in self.sync(); self.model.receive() }
@@ -42,7 +48,7 @@ import WatchConnectivity
         let reply = Reply(replyHandler)
         Task { @MainActor in
             if let retry { self.model.retry(retry) }
-            reply.call(["room": self.model.room.room.uuidString, "session": self.model.room.session.uuidString, "receipts": self.model.receipts])
+            reply.call(self.context)
             self.model.receive()
         }
     }
