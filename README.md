@@ -1,89 +1,164 @@
 # talk-bugs
 
-A minimal group chat: **speak to contribute, read to receive**. No typed message inputs, audio playback, accounts, or third-party application backend. The React UI uses default neutral shadcn/ui components and system fonts; Cloudflare Workers serves the app, and one SQLite-backed Durable Object coordinates each room.
+**Speak to send. Read to receive.**
 
-Live app: [talk-bugs.roundtrip.workers.dev](https://talk-bugs.roundtrip.workers.dev).
+A group chat with no typing and no voice playback. Open a room, share its link, and talk.
 
-## Native iPhone and Apple Watch apps
+[Open the app](https://talk-bugs.roundtrip.workers.dev) · [Build for iPhone and Apple Watch](native/README.md)
 
-The SwiftUI apps in [`native/`](native/README.md) use push-to-talk: hold the microphone button to speak, then release to send the completed turn. Watch recordings go to the paired iPhone for local transcription; only text goes to Cloudflare. Native clients share rooms with browser clients through HTTPS snapshots and transcript posts. See the native README for Xcode setup, controls/complications, tests, and the simulator/hardware validation boundary.
+## Try it
 
-## Reading a conversation
+1. Open the app. You're already in a room—no account or welcome page.
+2. Share the room link with someone.
+3. Hold **Hold to talk**, speak, then release.
 
-The main view shows only other people: their current turn and one previous turn. Silent participants take no reading space. Once someone speaks, they keep a stable place, even during overlapping speech, corrections, reconnects, and departures. Words remain until replaced by another turn (subject to the existing retention limit). History contains the full retained conversation, including your words. Long turns scroll within their speaker's reading area; partial updates never force scrolling.
+```text
+You speak       “I'll meet you outside.”
+                            │
+                            ▼
+They read        I'll meet you outside.
 
-On iPhone, incoming speakers have fixed reading areas. Watch uses one reading page per person in groups, with vertical paging, so a new speaker cannot replace the person being read. Both keep push-to-talk at the bottom. The paired Watch adopts the iPhone's identity so your words stay in History on both devices.
+They speak      “Give me two minutes.”
+                            │
+                            ▼
+You read         Give me two minutes.
+```
 
-## Run the web app
+Everyone can speak at once. Nobody hears anyone else's audio through the app.
+
+## A screen for reading
+
+Your main screen shows **other people's words**. Your own words are in **History**.
+
+```text
+┌──────────────────────────────────────────┐
+│ talk-bugs                      History   │
+│                                          │
+│ Person 2                      Speaking   │
+│ I'll meet you outside.        ← current  │
+│ ──────────────────────────────────────── │
+│ I'm leaving now.              ← previous │
+│                                          │
+│ Person 3                                 │
+│ Give me two minutes.          ← current  │
+│                                          │
+│             [ Hold to talk ]             │
+└──────────────────────────────────────────┘
+```
+
+Each person keeps their place, even when people talk over each other. Corrections change the words in place without moving your scroll position. Silent people take no space.
+
+On Apple Watch, each speaker gets a page. Swipe between people.
+
+## Where the words go
+
+```mermaid
+flowchart TD
+    Browser[Browser: speech to text]
+    Watch[Apple Watch: record speech]
+    Phone[iPhone: speech to text locally]
+
+    Watch -->|Audio to your paired iPhone| Phone
+
+    subgraph Cloudflare[Cloudflare — text only]
+        Room[One Durable Object per room<br/>Stores text in SQLite]
+    end
+
+    Browser -->|Text as you speak| Room
+    Phone -->|Text after you release| Room
+    Room --> Readers[Everyone reads the words<br/>on web, iPhone, or Watch]
+```
+
+A Durable Object is the room's coordinator: it saves changes and shares them with everyone. Cloudflare Workers also serves the web app. There is no other application backend.
+
+| | Web | iPhone | Apple Watch |
+| --- | --- | --- | --- |
+| Turns speech into text | Browser speech recognition | On the iPhone | On the paired iPhone |
+| Sends words | While you speak | After you release | After the phone transcribes |
+| Receives words | Live over WebSocket | Checks every second while open | Checks every second while open |
+| Hold length | Up to 4,000 characters | Up to 30 seconds | Up to 30 seconds |
+
+**Only text goes to Cloudflare.** Browser recognition uses an installed local English speech pack when available; otherwise, the browser may send audio to its vendor. The native apps transcribe on the iPhone, with no cloud fallback. Watch delivery can wait if the phone is unavailable or asleep.
+
+Speech recognition is set to US English. Browsers without speech recognition can still read and invite people. Speaking requires microphone permission and HTTPS or localhost.
+
+## How live corrections work
+
+Speech recognition can change its mind. Each update replaces the same message:
+
+```text
+One hold → one message
+
+Update 1       “Meet me at the”
+Update 2       “Meet me at the park”
+Update 3       “Meet me at the parking lot.”
+Release        “Meet me at the parking lot.”  ✓ finished
+```
+
+| When… | The app… |
+| --- | --- |
+| Two people speak at once | Updates each person's message separately. |
+| Words arrive quickly | Sends the latest web update every 100 ms; sends the finished turn immediately. |
+| An old update arrives late | Ignores it using the message ID and update number. |
+| A message is finished | Keeps it unchanged. |
+| A connection drops | Reloads saved text and retries unconfirmed updates on reconnect. |
+
+The room saves each change before confirming it. The 100 ms timer controls how often the app sends updates. Recognizing speech and moving text over the network also take time.
+
+## Run it locally
+
+With Node.js and npm installed:
 
 ```sh
+git clone https://github.com/irvinebroque/talk-bugs.git
+cd talk-bugs
 npm ci
 npm run dev
 ```
 
-Open the printed localhost URL to enter a new room immediately. Copy its invite link and open it in separate browser windows to join as different people. Reloading a room link keeps the same room; the New room action opens a fresh one. A localhost link is only reachable on the same computer; deploy for remote participants.
+Open the printed URL. Share the room link between separate browser windows to try a conversation. A localhost link only works on your computer.
+
+The web UI uses React and default [shadcn/ui](https://ui.shadcn.com/docs/) components. For SwiftUI, Xcode setup, shortcuts, and Watch complications, see the [native guide](native/README.md).
+
+### Check your changes
 
 ```sh
 npm run typecheck
 npm test
 npm run test:e2e
 npm run build
-npx wrangler deploy --dry-run
+```
+
+Browser tests use Google Chrome. If it's missing, run `npx playwright install chrome`.
+
+### Deploy to Cloudflare
+
+```sh
+npx wrangler login
 npm run deploy
 ```
 
-Deployment uses your authenticated Wrangler account (`npx wrangler login` if needed). No API keys or secrets are required. The `ROOMS` binding and SQLite migration are declared in `wrangler.jsonc`. The compatibility date is October 26, 2026, the newest date supported by the installed local runtime when this project was created. After changing bindings, run `npm run cf-typegen` and commit the generated `worker-configuration.d.ts`.
+No application API keys or secrets are needed. [wrangler.jsonc](wrangler.jsonc) defines the room binding and database migration. After changing bindings, run `npm run cf-typegen` and commit the generated types.
 
-Browser tests use installed Google Chrome (`channel: "chrome"`). To run in CI without Chrome, install it with `npx playwright install chrome`, or adjust the Playwright project to an installed Chromium build.
+## Know the limits
 
-## Browser speech recognition
+| | Current behavior |
+| --- | --- |
+| Room access | Anyone with the link can join and read. No accounts or end-to-end encryption. |
+| Room size | Up to 24 connected people. |
+| Message size | Up to 4,000 characters per turn. |
+| History | Latest 200 turns; stored text expires after 24 hours. |
+| Web reloads | Saved words survive. Unsent words in page memory do not. |
+| Native retries | Up to 20 pending jobs. Jobs older than 24 hours are removed when the app launches or refreshes. |
+| Background reading | Native apps pause reading. No push notifications yet. |
 
-talk-bugs uses `SpeechRecognition` or `webkitSpeechRecognition`, with `continuous = true` and `interimResults = true`. When the optional `available()` check confirms that the English (`en-US`) pack is installed, it sets `processLocally = true`. Otherwise it uses standard browser recognition, including when the local check fails or a pack would need downloading. A local language-unavailable error switches the next user-initiated attempt to standard recognition.
+## What has been checked
 
-Standard recognition may send audio to the browser vendor’s service. Only text reaches the Cloudflare application backend. Browser application code does not record, upload, or play audio. The native apps temporarily record audio locally, as described above. There is no typed fallback. Browsers without either recognition constructor can still read and invite.
+| Check | Status |
+| --- | --- |
+| Simultaneous speakers, corrections, reconnects, and separate rooms | Automated tests pass. |
+| Push-to-talk and reading views | Browser and native simulator checks pass, using simulated speech. |
+| iPhone and Watch builds | Pass. |
+| Real microphones, Watch audio transfer, and locked-phone delivery | Still need physical-device testing. |
 
-Hold the microphone button to speak; release it to finish the turn. With the button focused, holding Space or Enter works too. The microphone also stops when the window loses focus, the tab becomes hidden, or the room disconnects. Reconnection never restarts it without a fresh press. HTTPS or localhost and microphone permission are required.
-
-Tests simulate the speech engine and exercise the real UI, WebSockets, and local Cloudflare runtime. They do not validate microphone hardware, a particular language pack, or real transcription accuracy. Check those manually in a supported browser before relying on transcription.
-
-## How simultaneous streaming works
-
-```text
-Browser A: microphone → browser recognition → revision snapshots ─┐
-Browser B: microphone → browser recognition → revision snapshots ─┤
-Browser C: microphone → browser recognition → revision snapshots ─┤
-                                                             ▼
-                                           One Durable Object per room
-                                            SQLite + WebSocket fan-out
-                                                             │
-                              ┌──────────────────────────────┼─────────┐
-                              ▼                              ▼         ▼
-                          A reads text                   B reads text  C reads text
-```
-
-Each press-and-hold turn has a random **utterance ID** and an increasing **revision**. A payload contains the complete current text, a revision, and a final flag. Partial speech recognition revises earlier words, so append-only token deltas would produce incorrect text. Small complete snapshots make correction, retries, and recovery straightforward. There is no shared transcription buffer between participants.
-
-The client coalesces interim updates to the latest revision every **100 ms**. Releasing the hold finalizes the turn and flushes immediately. Browser-finalized segments and recognizer restarts are combined under the same turn ID. The same WebSocket carries upstream text, downstream revisions, presence, and acknowledgments. This avoids separate POST/SSE channels and supports independent concurrent speakers without turn-taking. Browser recognition latency and network round trips still apply; the 100 ms interval is an application batching limit, not an end-to-end latency promise.
-
-The server namespaces utterance IDs by a server-derived participant identity, rejects stale/duplicate revisions, and assigns a stable order when a phrase first arrives. Revisions replace the existing row; final rows cannot be rewritten. The UI revises the current turn in place, at full reading contrast, and shows a small Speaking indicator. Different speakers have independent reading areas; their sections never reorder with activity. There is no need for a CRDT: participants only revise their own phrases, and the room object orders all accepted changes.
-
-Every accepted revision is written synchronously to Durable Object SQLite before acknowledgment and broadcast. Persisting interim text costs more storage writes than ephemeral-only drafts but preserves in-progress messages across hibernation and supports reliable snapshots. All socket identity/rate state uses `serializeAttachment()`; no correctness-critical state depends on the object staying in memory. The hibernation API and automatic ping/pong responses let idle rooms sleep without dropping their sockets.
-
-On reconnect, the server sends authoritative history and presence. The client retries only its latest unacknowledged revision per phrase; acknowledgments and revision checks prevent duplicate messages. The pending queue lives in page memory, so unsent words do **not** survive closing/reloading the page. Previously acknowledged text does survive. A browser tab keeps its per-room identity in sessionStorage across reloads and reconnects; a fresh tab normally has a separate identity. This prevents your own acknowledged turns from appearing as someone else’s after reload. If browser storage is unavailable, identity lasts for that page only. Disconnects mark unfinished phrases as interrupted; alarms also mark stale drafts after 45 seconds. Slow connections are closed and recovered rather than accumulating an unlimited client send buffer.
-
-## Boundaries
-
-- Up to 24 connected participants per room, 4,000 characters per phrase, 20 KB per frame, and 160 updates per 10 seconds per participant. At most four unfinished phrases per participant.
-- History exposes up to the latest 200 turns; the main reading view shows each other speaker’s current and previous turn. The server retains the recent window plus any still-active older drafts. Stored text expires after 24 hours; alarms perform cleanup without a permanent server timer.
-- Room UUIDs are bearer invitations. Anyone with a link can read its history and join. This is not an authenticated workspace or end-to-end encrypted messenger.
-- Same-origin checks, schema validation, server-owned speaker IDs, parameterized SQL, React text escaping, and a Content Security Policy protect the normal app boundary. The protocol rejects binary frames. The voice-only constraint is enforced by the UI; a hostile custom client could manufacture text, since browsers cannot prove that text originated from speech.
-- No audio is sent through Cloudflare. JavaScript and styles are hosted alongside the app; the app has no analytics or external runtime assets.
-
-The repository includes protocol tests plus browser/integration coverage for overlapping speakers, corrections, immutable finals, room isolation, disconnect/retry recovery, permission errors, standard and prefixed recognition fallbacks, unsupported browsers, mobile layout, and binary payload rejection.
-
-## References
-
-- [MDN: on-device Web Speech recognition](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API#on-device_speech_recognition)
-- [Cloudflare: Durable Object WebSockets and hibernation](https://developers.cloudflare.com/durable-objects/best-practices/websockets/)
-- [Cloudflare Vite plugin](https://developers.cloudflare.com/workers/vite-plugin/)
-- [shadcn/ui](https://ui.shadcn.com/docs/)
+See the [native validation details](native/README.md#validation) for what simulators can and cannot test.
