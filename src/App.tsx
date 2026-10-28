@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, HelpCircle, LoaderCircle, Mic, MicOff, Plus, Square } from "lucide-react";
+import { Check, HelpCircle, LoaderCircle, Mic, MicOff, Plus, Share, Square } from "lucide-react";
 import { PushToTalk } from "@/components/push-to-talk";
 import { Button } from "@/components/ui/button";
 import { Incoming, RoomHistory } from "@/components/incoming";
@@ -40,19 +40,33 @@ function Room({ roomId, secret }: { roomId: string; secret?: string }) {
   const speech = useSpeech(room.publish, room.status === "connected");
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const speaking = speech.activity === "listening" || speech.activity === "starting";
   useEffect(() => () => clearTimeout(copyTimer.current), []);
 
   const invite = async () => {
+    if (sharing) return;
+    setSharing(true);
+    setCopyError(false);
+    setCopied(false);
+    clearTimeout(copyTimer.current);
     try {
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: "talk-bugs", url: location.href });
+          return;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+        }
+      }
       await navigator.clipboard.writeText(location.href);
       setCopied(true);
-      setCopyError(false);
-      clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), 2500);
     } catch {
       setCopyError(true);
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -76,7 +90,7 @@ function Room({ roomId, secret }: { roomId: string; secret?: string }) {
           </CardDescription>
           <CardAction className="flex items-center gap-1">
             <Button asChild variant="outline" size="icon"><a href="/" aria-label="New room" title="New room"><Plus /></a></Button>
-            <Button variant="outline" onClick={() => void invite()}>{copied ? <Check /> : <Copy />}{copied ? "Copied" : "Invite"}</Button>
+            <Button variant="outline" size="icon" aria-label={copied ? "Link copied" : "Share room"} title={copied ? "Link copied" : "Share room"} disabled={sharing} onClick={() => void invite()}>{copied ? <Check /> : <Share />}</Button>
             <RoomHistory messages={room.messages} selfID={room.self?.id} />
             <Help encrypted={!!secret} />
           </CardAction>

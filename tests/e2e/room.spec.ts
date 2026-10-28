@@ -77,7 +77,7 @@ test("browsers without speech recognition can still read and invite", async ({ p
   await page.goto(`/r/${crypto.randomUUID()}`);
   await expect(page.getByRole("button", { name: "Speech unavailable", exact: true })).toBeDisabled();
   await expect(page.getByText("This browser doesn’t support speech recognition.", { exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Invite", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Share room", exact: true })).toBeEnabled();
 });
 
 test("opening the app enters a room immediately and mobile layout fits", async ({ page }) => {
