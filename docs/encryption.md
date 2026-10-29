@@ -10,9 +10,9 @@ Speech → text → encrypt       Cloudflare       decrypt → read
 ## Invitations
 
 ```text
-https://talk-bugs.roundtrip.workers.dev/e/ROOM-ID#key=ROOM-KEY
-                                             └───────────┘
-                                             Stays on devices
+https://talkbugs.com/e/ROOM-ID#key=ROOM-KEY
+                              └───────────┘
+                              Stays on devices
 ```
 
 - A room key is 32 random bytes, encoded as unpadded base64url (43 characters).

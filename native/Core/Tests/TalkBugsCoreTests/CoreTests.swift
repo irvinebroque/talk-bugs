@@ -6,6 +6,9 @@ struct CoreTests {
     @Test func invitationsOnlyAcceptOurRooms() {
         let room = UUID()
         #expect(RoomLink.parse(RoomLink.url(room)) == room)
+        #expect(RoomLink.url(room).host == "talkbugs.com")
+        #expect(RoomLink.parse(URL(string: "https://talk-bugs.roundtrip.workers.dev/r/\(room)")!) == room)
+        #expect(RoomLink.parse(URL(string: "https://talkbugs.com.evil.test/r/\(room)")!) == nil)
         #expect(RoomLink.parse(URL(string: "talk-bugs://room/\(room)")!) == room)
         #expect(RoomLink.parse(URL(string: "https://example.com/r/\(room)")!) == nil)
         #expect(RoomLink.parse(URL(string: "https://talk-bugs.roundtrip.workers.dev/r/nope")!) == nil)

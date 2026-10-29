@@ -40,7 +40,7 @@ public struct RoomInvite: Equatable, Sendable {
     public let key: String?
 }
 public enum RoomLink {
-    public static let origin = URL(string: "https://talk-bugs.roundtrip.workers.dev")!
+    public static let origin = URL(string: "https://talkbugs.com")!
     public static func url(_ room: UUID, key: String? = nil, encrypted: Bool = false) -> URL {
         var parts = URLComponents(url: origin.appending(path: "\(encrypted || key != nil ? "e" : "r")/\(room.uuidString.lowercased())"), resolvingAgainstBaseURL: false)!
         if let key { parts.fragment = "key=\(key)" }
@@ -51,7 +51,7 @@ public enum RoomLink {
         if url.scheme == "talk-bugs", ["room", "encrypted-room"].contains(url.host), parts.count == 1, let room = UUID(uuidString: parts[0]) {
             return invite(room: room, encrypted: url.host == "encrypted-room", fragment: url.fragment)
         }
-        guard url.scheme == "https", url.host == origin.host, url.port == nil, url.user == nil, url.password == nil,
+        guard url.scheme == "https", [origin.host, "talk-bugs.roundtrip.workers.dev"].contains(url.host), url.port == nil, url.user == nil, url.password == nil,
               parts.count == 2, ["r", "e"].contains(parts[0]), let room = UUID(uuidString: parts[1]) else { return nil }
         return invite(room: room, encrypted: parts[0] == "e", fragment: url.fragment)
     }

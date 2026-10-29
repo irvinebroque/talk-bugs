@@ -4,6 +4,7 @@
 <dict>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
+		<string>applinks:talkbugs.com</string>
 		<string>applinks:talk-bugs.roundtrip.workers.dev</string>
 	</array>
 </dict>

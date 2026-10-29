@@ -1,6 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "talk-bugs",
+  "workers_dev": true,
+  "routes": [{ "pattern": "talkbugs.com", "custom_domain": true }],
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-26",
   "compatibility_flags": ["nodejs_compat"],

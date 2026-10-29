@@ -4,7 +4,7 @@
 
 A group chat with no typing and no voice playback. Open a room, share its link, and talk.
 
-[Open the app](https://talk-bugs.roundtrip.workers.dev) · [Build for iPhone and Apple Watch](native/README.md)
+[Open the app](https://talkbugs.com) · [Build for iPhone and Apple Watch](native/README.md)
 
 ## Try it
 

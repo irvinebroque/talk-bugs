@@ -19,7 +19,7 @@ For hardware, select your Apple development team for the app and both widget ext
 
 Start on the iPhone: its room and participant identity are passed to the Watch through WatchConnectivity. Sharing that identity keeps your own messages out of both incoming views. Invite links open that room in the native app when installed, or the web app otherwise. `talk-bugs://room/<room-uuid>` is also supported. The plus button creates another room. Pending recordings retain the room in which they were recorded.
 
-Add **Speak in talk-bugs** to iPhone Control Center, the Lock Screen controls, or an Action button shortcut. The Watch face **Speak** complication and iPhone shortcuts open the conversation without turning on the microphone. Hold the in-app control to record. VoiceOver also exposes explicit Start speaking and Finish speaking accessibility actions. Microphone permission is requested on the first hold; if the permission sheet interrupts the hold, hold again after allowing access. The app's shortcut URL is `https://talk-bugs.roundtrip.workers.dev/talk` (or `talk-bugs://talk`).
+Add **Speak in talk-bugs** to iPhone Control Center, the Lock Screen controls, or an Action button shortcut. The Watch face **Speak** complication and iPhone shortcuts open the conversation without turning on the microphone. Hold the in-app control to record. VoiceOver also exposes explicit Start speaking and Finish speaking accessibility actions. Microphone permission is requested on the first hold; if the permission sheet interrupts the hold, hold again after allowing access. The app's shortcut URL is `https://talkbugs.com/talk` (or `talk-bugs://talk`).
 
 ## Encrypted invitations
 
@@ -27,7 +27,7 @@ New rooms use `/e/<room-id>#key=<secret>`. Share the complete link. The iPhone s
 
 Queued recordings remember their original room and encryption mode. Their keys stay in Keychain even after you switch rooms. Missing keys stop delivery instead of falling back to plaintext. Losing every copy of the full invite and its saved key loses access to that room.
 
-Encrypted universal links and `talk-bugs://encrypted-room/<room-id>#key=<secret>` open the room. Older `talk-bugs://room/<room-id>` and `/r/` links still open their original plaintext rooms.
+New invitations use `talkbugs.com`; existing `talk-bugs.roundtrip.workers.dev` invitations still work. Encrypted universal links and `talk-bugs://encrypted-room/<room-id>#key=<secret>` open the room. Older `talk-bugs://room/<room-id>` and `/r/` links still open their original plaintext rooms.
 
 ## Audio and delivery
 
@@ -58,7 +58,7 @@ On Apple Silicon macOS 26+, test the production local transcription code with:
 ```sh
 native/scripts/check-local-speech.sh
 # Also post the recognized text through the real API and read it as a second client:
-TALK_BUGS_TEST_SERVER=https://talk-bugs.roundtrip.workers.dev \
+TALK_BUGS_TEST_SERVER=https://talkbugs.com \
   native/scripts/check-local-speech.sh
 ```
 

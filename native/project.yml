@@ -53,7 +53,7 @@ targets:
     entitlements:
       path: iPhone/TalkBugs.entitlements
       properties:
-        com.apple.developer.associated-domains: ['applinks:talk-bugs.roundtrip.workers.dev']
+        com.apple.developer.associated-domains: ['applinks:talkbugs.com', 'applinks:talk-bugs.roundtrip.workers.dev']
   TalkBugsWatch:
     type: application
     platform: watchOS

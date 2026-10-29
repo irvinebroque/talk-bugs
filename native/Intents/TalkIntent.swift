@@ -5,7 +5,7 @@ struct TalkIntent: AppIntent {
     static let title: LocalizedStringResource = "Speak in talk-bugs"
     static let openAppWhenRun = true
     func perform() async throws -> some IntentResult & OpensIntent {
-        .result(opensIntent: OpenURLIntent(URL(string: "https://talk-bugs.roundtrip.workers.dev/talk")!))
+        .result(opensIntent: OpenURLIntent(URL(string: "https://talkbugs.com/talk")!))
     }
 }
 struct TalkShortcuts: AppShortcutsProvider {

@@ -29,6 +29,9 @@ struct EncryptionTests {
         let f = try fixture(), url = RoomLink.url(f.room, key: f.key)
         #expect(url.path.hasPrefix("/e/"))
         #expect(RoomLink.invitation(url)?.key == f.key)
+        #expect(url.host == "talkbugs.com")
+        let oldInvite = URL(string: "https://talk-bugs.roundtrip.workers.dev/e/\(f.room)#key=\(f.key)")!
+        #expect(RoomLink.invitation(oldInvite) == RoomLink.invitation(url))
         #expect(RoomLink.parse(url) == nil)
         #expect(RoomLink.invitation(RoomLink.url(f.room, encrypted: true)) == nil)
         #expect(RoomLink.invitation(URL(string: "\(RoomLink.url(f.room))#key=\(f.key)")!) == nil)
